@@ -1,164 +1,238 @@
 {% extends 'core/base.html' %}
 
-{% block title %}Sale Detail — Farm ERP{% endblock %}
+{% block title %}{{ title }} — Farm ERP{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h4>Sale — {{ sale.sale_date }}</h4>
-    <a href="{% url 'shopsale-receipt' sale.pk %}" class="btn btn-outline-secondary">
-        <i class="bi bi-printer"></i> Print Receipt
-    </a>
-</div>
+<style>
+    /* Target Django's default help text class with clean ERP styling */
+    .helptext {
+        display: block;
+        font-size: 0.8rem;
+        color: #6c757d;
+        font-style: italic;
+        margin-top: 0.25rem;
+    }
+    /* Custom styling to make form rows stand out cleanly */
+    .formset-row {
+        transition: all 0.2s ease-in-out;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+    }
+    .formset-row:hover {
+        background-color: #f1f3f5;
+    }
+</style>
 
-<div class="card mb-4">
-    <div class="card-header">Sale Details</div>
-    <div class="card-body">
-        <p><strong>Customer:</strong> {{ sale.customer.name|default:sale.customer_name_walkin|default:"Walk-in" }}</p>
-        <p><strong>Date:</strong> {{ sale.sale_date }}</p>
-        <p><strong>Total Amount:</strong> ₦{{ sale.total_amount }}</p>
-        <p><strong>Amount Paid:</strong> ₦{{ sale.amount_paid }}</p>
-        <p><strong>Balance:</strong>
-            {% if sale.amount_outstanding_payment <= 0 %}
-                <span class="badge bg-success">Fully Paid</span>
-            {% else %}
-                <span class="text-danger fw-bold">₦{{ sale.amount_outstanding_payment }} outstanding</span>
-            {% endif %}
-        </p>
-        <p><strong>Overall Delivery Status:</strong>
-            {% if sale.delivery_status == 'complete' %}
-                <span class="badge bg-success">Complete</span>
-            {% elif sale.delivery_status == 'partial' %}
-                <span class="badge bg-warning text-dark">Partial</span>
-            {% else %}
-                <span class="badge bg-danger">Pending</span>
-            {% endif %}
-        </p>
-        <p><strong>Recorded By:</strong> {{ sale.recorded_by.full_name }}</p>
-        <p><strong>Notes:</strong> {{ sale.notes|default:"—" }}</p>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>{{ title }}</h2>
+        <span class="badge bg-success opacity-75 shadow-sm">Sales Module</span>
     </div>
-</div>
+    <hr>
 
-<div class="card mb-4">
-    <div class="card-header">Payments</div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>Method</th>
-                        <th>Amount</th>
-                        <th>Reference</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for payment in sale.payments.all %}
-                    <tr>
-                        <td>{{ payment.get_payment_method_display }}</td>
-                        <td>₦{{ payment.amount }}</td>
-                        <td>{{ payment.payment_reference|default:"—" }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="3" class="text-center text-muted py-3">No payments recorded.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
+    <form method="post" novalidate>
+        {% csrf_token %}
 
-<div class="card mb-4">
-    <div class="card-header">Items</div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>Product</th>
-                        <th>Quantity</th>
-                        <th>Price/Unit</th>
-                        <th>Total</th>
-                        <th>Pricing</th>
-                        <th>Delivered</th>
-                        <th>Outstanding</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in sale.items.all %}
-                    <tr>
-                        <td>{{ item.product }}</td>
-                        <td>{{ item.quantity }} {{ item.product.unit }}</td>
-                        <td>₦{{ item.price_per_unit }}</td>
-                        <td>₦{{ item.total_amount }}</td>
-                        <td>{{ item.get_pricing_type_display }}</td>
-                        <td>{{ item.quantity_delivered }} {{ item.product.unit }}</td>
-                        <td>
-                            {% if item.delivery_status == 'complete' %}
-                                —
-                            {% else %}
-                                {{ item.quantity_outstanding|floatformat:0 }} {{ item.product.unit }} remaining
+        <div class="card shadow-sm mb-4 border-success-subtle">
+            <div class="card-header bg-success text-white fw-bold">
+                <i class="bi bi-info-circle-fill me-2"></i>General Sale Information
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    {% for field in form %}
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
+                            <div>
+                                {{ field }}
+                            </div>
+                            {% if field.help_text %}
+                                <span class="helptext">{{ field.help_text }}</span>
                             {% endif %}
-                        </td>
-                        <td>
-                            {% if item.delivery_status == 'complete' %}
-                                <span class="badge bg-success">Complete</span>
-                            {% elif item.delivery_status == 'partial' %}
-                                <span class="badge bg-warning text-dark">Partial</span>
-                            {% else %}
-                                <span class="badge bg-danger">Pending</span>
+                            {% if field.errors %}
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
                             {% endif %}
-                        </td>
-                        <td>
-                            <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}"
-                               class="btn btn-sm btn-success">
-                                <i class="bi bi-truck"></i> Deliver
-                            </a>
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="9" class="text-center text-muted py-3">No items.</td>
-                    </tr>
+                        </div>
                     {% endfor %}
-                </tbody>
-            </table>
+                </div>
+            </div>
         </div>
-    </div>
+
+        <div class="card shadow-sm mb-4 border-success-subtle">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center fw-bold">
+                <span><i class="bi bi-basket-fill me-2"></i>Products / Items Sold</span>
+                <button type="button" class="btn btn-sm btn-light text-success fw-bold shadow-sm" id="add-item-btn">
+                    <i class="bi bi-plus-circle-fill me-1"></i> Add Item Row
+                </button>
+            </div>
+            <div class="card-body" id="item-formset-container">
+                {{ formset.management_form }}
+                
+                {% for item_form in formset %}
+                    <div class="item-form-row formset-row border p-3 mb-3 shadow-sm">
+                        <div class="row g-3 align-items-end">
+                            {% for field in item_form %}
+                                {% if field.is_hidden %}
+                                    {{ field }}
+                                {% else %}
+                                    <div class="col-md">
+                                        <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <span class="helptext">{{ field.help_text }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                <div id="item-empty-form" class="d-none">
+                    <div class="item-form-row formset-row border p-3 mb-3 shadow-sm">
+                        <div class="row g-3 align-items-end">
+                            {% for field in formset.empty_form %}
+                                {% if field.is_hidden %}
+                                    {{ field }}
+                                {% else %}
+                                    <div class="col-md">
+                                        <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <span class="helptext">{{ field.help_text }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-4 border-success-subtle">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center fw-bold">
+                <span><i class="bi bi-credit-card-fill me-2"></i>Payment Details</span>
+                <button type="button" class="btn btn-sm btn-light text-success fw-bold shadow-sm" id="add-payment-btn">
+                    <i class="bi bi-plus-circle-fill me-1"></i> Add Payment Row
+                </button>
+            </div>
+            <div class="card-body" id="payment-formset-container">
+                {{ payment_formset.management_form }}
+                
+                {% for payment_form in payment_formset %}
+                    <div class="payment-form-row formset-row border p-3 mb-3 shadow-sm">
+                        <div class="row g-3 align-items-end">
+                            {% for field in payment_form %}
+                                {% if field.is_hidden %}
+                                    {{ field }}
+                                {% else %}
+                                    <div class="col-md">
+                                        <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <span class="helptext">{{ field.help_text }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                <div id="payment-empty-form" class="d-none">
+                    <div class="payment-form-row formset-row border p-3 mb-3 shadow-sm">
+                        <div class="row g-3 align-items-end">
+                            {% for field in payment_formset.empty_form %}
+                                {% if field.is_hidden %}
+                                    {{ field }}
+                                {% else %}
+                                    <div class="col-md">
+                                        <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.help_text %}
+                                            <span class="helptext">{{ field.help_text }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mb-5">
+            <button type="submit" class="btn btn-success px-4 shadow-sm">
+                <i class="bi bi-check-circle-fill me-1"></i> Save Sale Transaction
+            </button>
+            <a href="{{ cancel_url }}" class="btn btn-outline-secondary px-4">
+                Cancel
+            </a>
+        </div>
+    </form>
 </div>
 
-{% for item in sale.items.all %}
-{% if item.deliveries.exists %}
-<div class="card mb-3">
-    <div class="card-header">Delivery History — {{ item.product }}</div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Quantity</th>
-                        <th>Delivered By</th>
-                        <th>Notes</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for delivery in item.deliveries.all %}
-                    <tr>
-                        <td>{{ delivery.delivery_date }}</td>
-                        <td>{{ delivery.quantity_delivered }} {{ item.product.unit }}</td>
-                        <td>{{ delivery.delivered_by.full_name }}</td>
-                        <td>{{ delivery.notes|default:"—" }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</div>
-{% endif %}
-{% endfor %}
+<script>
+    function addFormsetRow(prefix, containerId, emptyFormId, maxForms = null, buttonId = null) {
+        const totalFormsInput = document.querySelector(`#id_${prefix}-TOTAL_FORMS`);
+        let currentFormCount = parseInt(totalFormsInput.value);
+        
+        if (maxForms && currentFormCount >= maxForms) {
+            alert(`Maximum of ${maxForms} rows allowed for this section.`);
+            return;
+        }
 
+        const container = document.getElementById(containerId);
+        const emptyFormWrapper = document.getElementById(emptyFormId);
+        const emptyFormTemplate = emptyFormWrapper.firstElementChild;
+        
+        const newRow = emptyFormTemplate.cloneNode(true);
+        const regex = new RegExp('__prefix__', 'g');
+        newRow.innerHTML = newRow.innerHTML.replace(regex, currentFormCount);
+        
+        container.insertBefore(newRow, emptyFormWrapper);
+        
+        currentFormCount++;
+        totalFormsInput.value = currentFormCount;
+
+        if (maxForms && currentFormCount >= maxForms && buttonId) {
+            const btn = document.getElementById(buttonId);
+            btn.disabled = true;
+            btn.className = "btn btn-sm btn-secondary";
+        }
+
+        styleFormInputs();
+    }
+
+    function styleFormInputs() {
+        const selectInputs = document.querySelectorAll('select');
+        const textInputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], textarea');
+        
+        selectInputs.forEach(el => el.classList.add('form-select', 'form-select-sm'));
+        textInputs.forEach(el => {
+            if (!el.classList.contains('form-check-input')) {
+                el.classList.add('form-control', 'form-control-sm');
+            }
+        });
+    }
+
+    document.getElementById('add-item-btn').addEventListener('click', function() {
+        addFormsetRow('items', 'item-formset-container', 'item-empty-form');
+    });
+
+    document.getElementById('add-payment-btn').addEventListener('click', function() {
+        addFormsetRow('payments', 'payment-formset-container', 'payment-empty-form', 3, 'add-payment-btn');
+    });
+
+    window.addEventListener('DOMContentLoaded', () => {
+        styleFormInputs();
+        
+        const paymentFormsCount = parseInt(document.querySelector('#id_payments-TOTAL_FORMS').value);
+        if (paymentFormsCount >= 3) {
+            const btn = document.getElementById('add-payment-btn');
+            btn.disabled = true;
+            btn.className = "btn btn-sm btn-secondary";
+        }
+    });
+</script>
 {% endblock %}
