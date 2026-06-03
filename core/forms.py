@@ -8,6 +8,7 @@ from .models import (
     DrugPurchaseOrder, DrugPurchaseItem,
     MortalityRecord, MortalityRecordItem,
     ShopStockMovement, ShopSale, ShopSaleItem,
+    ShopSalePayment,
 )
 
 
@@ -183,7 +184,7 @@ class ShopSaleForm(forms.ModelForm):
     class Meta:
         model = ShopSale
         fields = ['customer', 'customer_name_walkin', 'sale_date',
-                  'payment_method', 'payment_reference', 'recorded_by', 'notes']
+                  'recorded_by', 'notes']
         widgets = {
             'sale_date': forms.DateInput(attrs={'type': 'date'}),
         }
@@ -206,6 +207,29 @@ ShopSaleItemFormSet = inlineformset_factory(
     ShopSaleItem,
     fields=['product', 'quantity', 'quantity_delivered_at_sale'],#
     form=ShopSaleItemForm,
+    extra=1,
+    can_delete=True,
+    min_num=1,
+    validate_min=True
+)
+
+class ShopSalePaymentForm(forms.ModelForm):
+    class Meta:
+        model = ShopSalePayment
+        fields = ['payment_method', 'amount', 'payment_reference']
+
+    def has_changed(self):
+        if self.instance.pk:
+            return True
+        return any(
+            self.data.get(self.add_prefix(f))
+            for f in self.fields
+        )
+
+ShopSalePaymentFormSet = inlineformset_factory(
+    ShopSale,
+    ShopSalePayment,
+    form=ShopSalePaymentForm,
     extra=1,
     can_delete=True,
     min_num=1,

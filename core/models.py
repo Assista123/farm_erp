@@ -1717,6 +1717,15 @@ class ShopSaleItem(models.Model):
     def quantity_outstanding(self):
         return self.quantity - self.quantity_delivered
 
+    @property
+    def amount_paid(self):
+        from django.db.models import Sum
+        return self.payments.aggregate(Sum('amount'))['amount__sum'] or 0
+
+    @property
+    def amount_outstanding_payment(self):
+        return self.total_amount - self.amount_paid
+
     def __str__(self):
         return f"{self.product.name} x {self.quantity} — Sale #{self.sale.pk}"
 
@@ -1739,6 +1748,31 @@ class ShopDelivery(models.Model):
 
     def str(self):
         return f"Delivery {self.quantity_delivered} for Sale #{self.sale.pk} on {self.delivery_date}"
+
+
+class ShopSalePayment(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('transfer', 'Bank Transfer'),
+        ('pos', 'POS'),
+    ]
+
+    sale = models.ForeignKey(
+        ShopSale,
+        on_delete=models.CASCADE,
+        related_name='payments'
+    )
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Transfer reference or POS receipt number"
+    )
+
+    def __str__(self):
+        return f"{self.get_payment_method_display()} — ₦{self.amount}"
+
 
 class ShopOutflow(models.Model):
     OUTFLOW_TYPE_CHOICES = [

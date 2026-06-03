@@ -19,6 +19,7 @@ from .models import (
     MaintenanceFault, MaintenanceRepair, MaintenanceConfirmation,
      Customer, ShopProduct, ShopStock, ShopStockMovement,
     ShopSale, ShopDelivery, ShopOutflow, OldLayerSale, WorkerSalary,
+    ShopSalePayment,
 )
 
 
@@ -330,6 +331,13 @@ class WorkerSalaryAdmin(admin.ModelAdmin):
                     'net_salary', 'payment_date']
     list_filter = ['month', 'year']
     readonly_fields = ['net_salary']
+
+
+@admin.register(ShopSalePayment)
+class ShopSalePaymentAdmin(admin.ModelAdmin):
+    list_display = ['sale', 'payment_method', 'amount', 'payment_reference']
+    list_filter = ['payment_method']
+
 
 @admin.register(ShopDelivery)
 class ShopDeliveryAdmin(admin.ModelAdmin):

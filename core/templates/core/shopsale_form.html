@@ -17,7 +17,7 @@
         <p><strong>Date:</strong> {{ sale.sale_date }}</p>
         <p><strong>Total Amount:</strong> ₦{{ sale.total_amount }}</p>
         <p><strong>Amount Paid:</strong> ₦{{ sale.amount_paid }}</p>
-        <p><strong>Balance:</strong> 
+        <p><strong>Balance:</strong>
             {% if sale.amount_outstanding_payment <= 0 %}
                 <span class="badge bg-success">Fully Paid</span>
             {% else %}
@@ -35,6 +35,36 @@
         </p>
         <p><strong>Recorded By:</strong> {{ sale.recorded_by.full_name }}</p>
         <p><strong>Notes:</strong> {{ sale.notes|default:"—" }}</p>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header">Payments</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Method</th>
+                        <th>Amount</th>
+                        <th>Reference</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for payment in sale.payments.all %}
+                    <tr>
+                        <td>{{ payment.get_payment_method_display }}</td>
+                        <td>₦{{ payment.amount }}</td>
+                        <td>{{ payment.payment_reference|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="3" class="text-center text-muted py-3">No payments recorded.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
@@ -64,12 +94,12 @@
                         <td>₦{{ item.price_per_unit }}</td>
                         <td>₦{{ item.total_amount }}</td>
                         <td>{{ item.get_pricing_type_display }}</td>
-                        <td>{{ item.quantity|floatformat:0 }} remaining</td>
+                        <td>{{ item.quantity_delivered }} {{ item.product.unit }}</td>
                         <td>
                             {% if item.delivery_status == 'complete' %}
                                 —
                             {% else %}
-                               {{ item.quantity_outstanding|floatformat:0 }} {{ item.product.unit }} remaining
+                                {{ item.quantity_outstanding|floatformat:0 }} {{ item.product.unit }} remaining
                             {% endif %}
                         </td>
                         <td>
@@ -82,7 +112,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}" 
+                            <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}"
                                class="btn btn-sm btn-success">
                                 <i class="bi bi-truck"></i> Deliver
                             </a>

@@ -19,10 +19,10 @@
 
                     <hr class="my-4">
 
+                    <!-- ITEMS FORMSET -->
                     <h6 class="text-success mb-3">Items</h6>
                     {{ formset.management_form }}
 
-                    <!-- Container for visible rows -->
                     <div id="formset-container">
                         {% for item_form in formset %}
                             <div class="formset-row border rounded p-3 mb-2 bg-light">
@@ -46,7 +46,6 @@
                         {% endfor %}
                     </div>
 
-                    <!-- Hidden template for new rows -->
                     <div id="empty-form" style="display: none;">
                         <div class="formset-row border rounded p-3 mb-2 bg-light">
                             <div class="row g-2">
@@ -65,16 +64,69 @@
                         </div>
                     </div>
 
-                    <!-- Buttons -->
-                    <div class="mt-4">
+                    <button type="button" class="btn btn-outline-success btn-sm mb-4" id="add-row">
+                        <i class="bi bi-plus-circle"></i> Add Another Item
+                    </button>
+
+                    <hr class="my-4">
+
+                    <!-- PAYMENT FORMSET -->
+                    {% if payment_formset %}
+                    <h6 class="text-success mb-3">Payments</h6>
+                    {{ payment_formset.management_form }}
+
+                    <div id="payment-formset-container">
+                        {% for payment_form in payment_formset %}
+                            <div class="payment-row border rounded p-3 mb-2 bg-light">
+                                <div class="row g-2">
+                                    {% for field in payment_form.visible_fields %}
+                                    {% if field.name != 'DELETE' %}
+                                    <div class="col-12 col-sm-6 col-md-4 mb-2">
+                                        <label class="form-label small">{{ field.label }}</label>
+                                        {{ field }}
+                                        {% if field.errors %}
+                                            <div class="text-danger small">{{ field.errors }}</div>
+                                        {% endif %}
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                    {% for hidden in payment_form.hidden_fields %}
+                                        {{ hidden }}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <div id="empty-payment-form" style="display: none;">
+                        <div class="payment-row border rounded p-3 mb-2 bg-light">
+                            <div class="row g-2">
+                                {% for field in payment_formset.empty_form.visible_fields %}
+                                {% if field.name != 'DELETE' %}
+                                <div class="col-12 col-sm-6 col-md-4 mb-2">
+                                    <label class="form-label small">{{ field.label }}</label>
+                                    {{ field }}
+                                </div>
+                                {% endif %}
+                                {% endfor %}
+                                {% for hidden in payment_formset.empty_form.hidden_fields %}
+                                    {{ hidden }}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-outline-success btn-sm mb-4" id="add-payment-row">
+                        <i class="bi bi-plus-circle"></i> Add Another Payment
+                    </button>
+                    {% endif %}
+
+                    <!-- BUTTONS -->
+                    <hr class="my-4">
+                    <div class="mt-2">
                         <button type="submit" class="btn btn-primary">
                             <i class="bi bi-save"></i> Save Sale
                         </button>
-                        
-                        <button type="button" class="btn btn-outline-success ms-2" id="add-row">
-                            <i class="bi bi-plus-circle"></i> Add Another Item
-                        </button>
-                        
                         <a href="{{ cancel_url }}" class="btn btn-outline-secondary ms-2">
                             <i class="bi bi-x-circle"></i> Cancel
                         </a>
@@ -87,16 +139,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Items formset
     const addBtn = document.getElementById('add-row');
     const container = document.getElementById('formset-container');
     const totalForms = document.getElementById('id_items-TOTAL_FORMS');
     const emptyFormDiv = document.getElementById('empty-form');
-
-    if (!addBtn || !container || !totalForms || !emptyFormDiv) {
-        console.error("Missing formset elements");
-        return;
-    }
-
     let formCount = parseInt(totalForms.value || 0);
 
     addBtn.addEventListener('click', function() {
@@ -104,13 +151,11 @@ document.addEventListener('DOMContentLoaded', function() {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = newHTML;
         const newRow = tempDiv.firstElementChild;
-
         if (newRow) {
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.className = 'btn btn-sm btn-outline-danger mt-3';
             removeBtn.innerHTML = '<i class="bi bi-trash"></i> Remove';
-
             removeBtn.onclick = function() {
                 if (confirm('Remove this item?')) {
                     newRow.remove();
@@ -118,13 +163,46 @@ document.addEventListener('DOMContentLoaded', function() {
                     totalForms.value = formCount;
                 }
             };
-
             newRow.appendChild(removeBtn);
             container.appendChild(newRow);
             formCount++;
             totalForms.value = formCount;
         }
     });
+
+    // Payments formset
+    const addPaymentBtn = document.getElementById('add-payment-row');
+    const paymentContainer = document.getElementById('payment-formset-container');
+    const totalPaymentForms = document.getElementById('id_payments-TOTAL_FORMS');
+    const emptyPaymentFormDiv = document.getElementById('empty-payment-form');
+
+    if (addPaymentBtn && paymentContainer && totalPaymentForms) {
+        let paymentFormCount = parseInt(totalPaymentForms.value || 0);
+
+        addPaymentBtn.addEventListener('click', function() {
+            const newHTML = emptyPaymentFormDiv.innerHTML.replace(/__prefix__/g, paymentFormCount);
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = newHTML;
+            const newRow = tempDiv.firstElementChild;
+            if (newRow) {
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'btn btn-sm btn-outline-danger mt-3';
+                removeBtn.innerHTML = '<i class="bi bi-trash"></i> Remove';
+                removeBtn.onclick = function() {
+                    if (confirm('Remove this payment?')) {
+                        newRow.remove();
+                        paymentFormCount = Math.max(0, paymentFormCount - 1);
+                        totalPaymentForms.value = paymentFormCount;
+                    }
+                };
+                newRow.appendChild(removeBtn);
+                paymentContainer.appendChild(newRow);
+                paymentFormCount++;
+                totalPaymentForms.value = paymentFormCount;
+            }
+        });
+    }
 });
 </script>
 

@@ -18,7 +18,7 @@ from .forms import (
     PenFeedingActivityForm, PenFeedingActivityItemFormSet,
     DrugPurchaseOrderForm, DrugPurchaseItemFormSet,
     MortalityRecordForm, MortalityRecordItemFormSet,
-    ShopSaleForm, ShopSaleItemFormSet,
+    ShopSaleForm, ShopSaleItemFormSet, ShopSalePaymentFormSet,
 )
 
 
@@ -33,6 +33,7 @@ from .models import (
     MaintenanceRepair, MaintenanceConfirmation,
     Customer, ShopProduct, ShopStock, ShopStockMovement,
     ShopSale, ShopSaleItem, ShopDelivery, ShopOutflow, OldLayerSale, WorkerSalary,
+    ShopSalePayment,
     
 )
 
@@ -1672,11 +1673,12 @@ def shopsale_create(request):
     if request.method == 'POST':
         form = ShopSaleForm(request.POST)
         formset = ShopSaleItemFormSet(request.POST, prefix='items')
+        payment_formset = ShopSalePaymentFormSet(request.POST, prefix='payments')
 
-        if form.is_valid() and formset.is_valid():
+        if form.is_valid() and formset.is_valid() and payment_formset.is_valid():
             sale = form.save()
+
             for item_form in formset:
-                # Skip rows that were left blank
                 if not item_form.has_changed():
                     continue
                 if item_form.cleaned_data.get('DELETE'):
@@ -1684,21 +1686,34 @@ def shopsale_create(request):
                 item = item_form.save(commit=False)
                 item.sale = sale
                 item.save()
+
+            for payment_form in payment_formset:
+                if not payment_form.has_changed():
+                    continue
+                if payment_form.cleaned_data.get('DELETE'):
+                    continue
+                payment = payment_form.save(commit=False)
+                payment.sale = sale
+                payment.save()
+
             return redirect('shopsale-list')
         else:
-            return render(request, 'core/formset_form.html', {
+            return render(request, 'core/shopsale_form.html', {
                 'form': form,
                 'formset': formset,
+                'payment_formset': payment_formset,
                 'title': 'Record Sale',
                 'cancel_url': reverse_lazy('shopsale-list'),
             })
     else:
         form = ShopSaleForm()
         formset = ShopSaleItemFormSet(prefix='items')
+        payment_formset = ShopSalePaymentFormSet(prefix='payments')
 
-    return render(request, 'core/formset_form.html', {
+    return render(request, 'core/shopsale_form.html', {
         'form': form,
         'formset': formset,
+        'payment_formset': payment_formset,
         'title': 'Record Sale',
         'cancel_url': reverse_lazy('shopsale-list'),
     })
