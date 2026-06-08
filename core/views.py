@@ -9,7 +9,7 @@ from datetime import date
 from django.db.models import Sum, Count, F
 from .permissions import role_required, get_user_context, get_worker_role
 from django.utils.decorators import method_decorator
-
+from django.http import JsonResponse
 
 from .forms import (
     FeedProcurementForm, FeedProcurementItemFormSet,
@@ -1834,3 +1834,21 @@ class MortalityRecordUpdateView(LoginRequiredMixin, UpdateView):
         context['title'] = 'Edit Mortality Record'
         context['cancel_url'] = reverse_lazy('mortalityrecord-list')
         return context
+
+
+@login_required
+def shop_product_prices(request):
+    """Return retail and wholesale price for a given product."""
+    product_id = request.GET.get('product_id')
+    if not product_id:
+        return JsonResponse({}, status=400)
+    try:
+        product = ShopProduct.objects.get(pk=product_id)
+        return JsonResponse({
+            'retail_price': str(product.retail_price),
+            'wholesale_price': str(product.wholesale_price),
+            'wholesale_threshold': str(product.wholesale_threshold),
+            'unit': product.unit,
+        })
+    except ShopProduct.DoesNotExist:
+        return JsonResponse({}, status=404)

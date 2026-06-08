@@ -173,4 +173,7 @@ urlpatterns = [
     # Worker Salary
     path('salaries/', views.WorkerSalaryListView.as_view(), name='workersalary-list'),
     path('salaries/add/', views.WorkerSalaryCreateView.as_view(), name='workersalary-create'),
+
+    # Product Prices
+    path('shop/product/prices/', views.shop_product_prices, name='shopproduct-prices'),
 ]

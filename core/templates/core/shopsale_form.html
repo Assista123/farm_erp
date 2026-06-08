@@ -202,6 +202,10 @@
         }
 
         styleFormInputs();
+
+        // Attach price lookup and total calc to new row
+        const allRows = container.querySelectorAll('.item-form-row');
+        attachPriceLookup(allRows[allRows.length - 1]);
     }
 
     function styleFormInputs() {
@@ -216,6 +220,131 @@
         });
     }
 
+    // Store fetched prices keyed by product id
+    const productPriceCache = {};
+
+    function calculateRowTotal(row) {
+        const productSelect = row.querySelector('select[id$="-product"]');
+        const quantityInput = row.querySelector('input[id$="-quantity"]');
+        let rowTotalEl = row.querySelector('.row-total');
+
+        if (!productSelect || !quantityInput) return;
+
+        const productId = productSelect.value;
+        const quantity = parseFloat(quantityInput.value) || 0;
+
+        if (!productId || !productPriceCache[productId]) {
+            if (rowTotalEl) rowTotalEl.innerHTML = '';
+            updateGrandTotal();
+            return;
+        }
+
+        const prices = productPriceCache[productId];
+        const threshold = parseFloat(prices.wholesale_threshold) || 0;
+        const price = quantity >= threshold
+            ? parseFloat(prices.wholesale_price)
+            : parseFloat(prices.retail_price);
+        const total = price * quantity;
+        const pricingLabel = quantity >= threshold ? 'Wholesale' : 'Retail';
+
+        if (!rowTotalEl) {
+            rowTotalEl = document.createElement('div');
+            rowTotalEl.className = 'row-total mt-2 text-end fw-bold text-success';
+            row.appendChild(rowTotalEl);
+        }
+
+        rowTotalEl.innerHTML = `
+            <span class="badge bg-light text-dark border me-1">${pricingLabel} @ ₦${price.toLocaleString()}/${prices.unit}</span>
+            <span class="badge bg-success fs-6">Row Total: ₦${total.toLocaleString()}</span>
+        `;
+
+        updateGrandTotal();
+    }
+
+    function updateGrandTotal() {
+        let grandTotal = 0;
+        document.querySelectorAll('.item-form-row').forEach(row => {
+            const productSelect = row.querySelector('select[id$="-product"]');
+            const quantityInput = row.querySelector('input[id$="-quantity"]');
+            if (!productSelect || !quantityInput) return;
+
+            const productId = productSelect.value;
+            const quantity = parseFloat(quantityInput.value) || 0;
+            if (!productId || !productPriceCache[productId] || !quantity) return;
+
+            const prices = productPriceCache[productId];
+            const threshold = parseFloat(prices.wholesale_threshold) || 0;
+            const price = quantity >= threshold
+                ? parseFloat(prices.wholesale_price)
+                : parseFloat(prices.retail_price);
+            grandTotal += price * quantity;
+        });
+
+        let grandTotalEl = document.getElementById('grand-total-display');
+        if (!grandTotalEl) {
+            grandTotalEl = document.createElement('div');
+            grandTotalEl.id = 'grand-total-display';
+            grandTotalEl.className = 'text-end mt-3 mb-2';
+            const container = document.getElementById('item-formset-container');
+            container.appendChild(grandTotalEl);
+        }
+        grandTotalEl.innerHTML = `
+            <span class="badge bg-success fs-5 px-4 py-2 shadow-sm">
+                <i class="bi bi-calculator me-1"></i> Estimated Total: ₦${grandTotal.toLocaleString()}
+            </span>
+        `;
+    }
+
+    function attachPriceLookup(row) {
+        const productSelect = row.querySelector('select[id$="-product"]');
+        const quantityInput = row.querySelector('input[id$="-quantity"]');
+        if (!productSelect) return;
+
+        let priceDisplay = row.querySelector('.price-display');
+        if (!priceDisplay) {
+            priceDisplay = document.createElement('div');
+            priceDisplay.className = 'price-display small text-muted mt-1';
+            productSelect.parentNode.appendChild(priceDisplay);
+        }
+
+        productSelect.addEventListener('change', function() {
+            const productId = this.value;
+            if (!productId) {
+                priceDisplay.innerHTML = '';
+                calculateRowTotal(row);
+                return;
+            }
+
+            if (productPriceCache[productId]) {
+                const data = productPriceCache[productId];
+                priceDisplay.innerHTML = `
+                    <span class="badge bg-secondary me-1">Retail: ₦${data.retail_price}/${data.unit}</span>
+                    <span class="badge bg-success">Wholesale: ₦${data.wholesale_price}/${data.unit} (≥${data.wholesale_threshold} ${data.unit})</span>
+                `;
+                calculateRowTotal(row);
+                return;
+            }
+
+            fetch(`/shop/product/prices/?product_id=${productId}`)
+                .then(res => res.json())
+                .then(data => {
+                    productPriceCache[productId] = data;
+                    priceDisplay.innerHTML = `
+                        <span class="badge bg-secondary me-1">Retail: ₦${data.retail_price}/${data.unit}</span>
+                        <span class="badge bg-success">Wholesale: ₦${data.wholesale_price}/${data.unit} (≥${data.wholesale_threshold} ${data.unit})</span>
+                    `;
+                    calculateRowTotal(row);
+                })
+                .catch(() => { priceDisplay.innerHTML = ''; });
+        });
+
+        if (quantityInput) {
+            quantityInput.addEventListener('input', function() {
+                calculateRowTotal(row);
+            });
+        }
+    }
+
     document.getElementById('add-item-btn').addEventListener('click', function() {
         addFormsetRow('items', 'item-formset-container', 'item-empty-form');
     });
@@ -226,7 +355,11 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         styleFormInputs();
-        
+
+        document.querySelectorAll('.item-form-row').forEach(row => {
+            attachPriceLookup(row);
+        });
+
         const paymentFormsCount = parseInt(document.querySelector('#id_payments-TOTAL_FORMS').value);
         if (paymentFormsCount >= 3) {
             const btn = document.getElementById('add-payment-btn');
