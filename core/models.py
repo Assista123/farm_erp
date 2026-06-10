@@ -1493,10 +1493,11 @@ class ShopProduct(models.Model):
     notes = models.TextField(blank=True)
 
     def __str__(self):
-        if self.product_type == 'egg' and self.egg_grade != 'not_applicable':
-            return f"Egg — {self.get_egg_grade_display()}"
+        if self.product_type == 'egg':
+            if self.egg_grade != 'not_applicable':
+                return f"Egg — {self.get_egg_grade_display()}"
+            return "Egg (Ungraded)"
         return f"{self.name} ({self.get_product_type_display()})"
-
 
 class ShopStock(models.Model):
     product = models.OneToOneField(
