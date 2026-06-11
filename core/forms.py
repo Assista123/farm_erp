@@ -221,10 +221,7 @@ class ShopSalePaymentForm(forms.ModelForm):
     def has_changed(self):
         if self.instance.pk:
             return True
-        return any(
-            self.data.get(self.add_prefix(f))
-            for f in self.fields
-        )
+        return bool(self.data.get(self.add_prefix('amount')))
 
 ShopSalePaymentFormSet = inlineformset_factory(
     ShopSale,

@@ -1593,17 +1593,17 @@ class ShopSale(models.Model):
     ]
 
     DELIVERY_STATUS_CHOICES = [
-    ('pending', 'Pending'),
-    ('partial', 'Partial'),
-    ('complete', 'Complete'),
+        ('pending', 'Pending'),
+        ('partial', 'Partial'),
+        ('complete', 'Complete'),
     ]
 
     delivery_status = models.CharField(
-    max_length=20,
-    choices=DELIVERY_STATUS_CHOICES,
-    default='pending',
-    editable=False,
-    help_text="Auto-computed from all item delivery statuses"
+        max_length=20,
+        choices=DELIVERY_STATUS_CHOICES,
+        default='pending',
+        editable=False,
+        help_text="Auto-computed from all item delivery statuses"
     )
     customer = models.ForeignKey(
         Customer,
@@ -1626,7 +1626,12 @@ class ShopSale(models.Model):
         default=0,
         help_text="Computed from all sale items"
     )
-    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PAYMENT_METHOD_CHOICES,
+        blank=True,
+        default='cash'
+    )
     payment_reference = models.CharField(
         max_length=200,
         blank=True,
@@ -1639,6 +1644,15 @@ class ShopSale(models.Model):
     )
     recorded_at = models.DateTimeField(auto_now_add=True)
     notes = models.TextField(blank=True)
+
+    @property
+    def amount_paid(self):
+        from django.db.models import Sum
+        return self.payments.aggregate(Sum('amount'))['amount__sum'] or 0
+
+    @property
+    def amount_outstanding_payment(self):
+        return self.total_amount - self.amount_paid
 
     def __str__(self):
         customer = self.customer.name if self.customer else self.customer_name_walkin or "Walk-in"
@@ -1768,6 +1782,15 @@ class ShopSalePayment(models.Model):
         blank=True,
         help_text="Transfer reference or POS receipt number"
     )
+
+    @property
+    def amount_paid(self):
+        from django.db.models import Sum
+        return self.payments.aggregate(Sum('amount'))['amount__sum'] or 0
+
+    @property
+    def amount_outstanding_payment(self):
+        return self.total_amount - self.amount_paid
 
     def __str__(self):
         return f"{self.get_payment_method_display()} — ₦{self.amount}"

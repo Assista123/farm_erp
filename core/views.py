@@ -1698,6 +1698,13 @@ def shopsale_create(request):
 
             return redirect('shopsale-list')
         else:
+            print("FORM VALID:", form.is_valid())
+            print("FORM ERRORS:", form.errors)
+            print("FORMSET VALID:", formset.is_valid())
+            print("FORMSET ERRORS:", formset.errors)
+            print("PAYMENT FORMSET VALID:", payment_formset.is_valid())
+            print("PAYMENT FORMSET ERRORS:", payment_formset.errors)
+            print("PAYMENT NON FORM ERRORS:", payment_formset.non_form_errors())
             return render(request, 'core/shopsale_form.html', {
                 'form': form,
                 'formset': formset,
@@ -1705,6 +1712,7 @@ def shopsale_create(request):
                 'title': 'Record Sale',
                 'cancel_url': reverse_lazy('shopsale-list'),
             })
+
     else:
         form = ShopSaleForm()
         formset = ShopSaleItemFormSet(prefix='items')
@@ -1717,7 +1725,6 @@ def shopsale_create(request):
         'title': 'Record Sale',
         'cancel_url': reverse_lazy('shopsale-list'),
     })
-
 
 @login_required
 def shop_sale_receipt(request, pk):
