@@ -49,7 +49,6 @@
                         <th>Quantity</th>
                         <th>Price/Unit</th>
                         <th>Total</th>
-                        <th>Pricing</th>
                         <th>Delivered</th>
                         <th>Outstanding</th>
                         <th>Status</th>
@@ -63,13 +62,12 @@
                         <td>{{ item.quantity }} {{ item.product.unit }}</td>
                         <td>₦{{ item.price_per_unit }}</td>
                         <td>₦{{ item.total_amount }}</td>
-                        <td>{{ item.get_pricing_type_display }}</td>
-                        <td>{{ item.quantity|floatformat:0 }} remaining</td>
+                        <td>{{ item.quantity_delivered }} {{ item.product.unit }}</td>
                         <td>
                             {% if item.delivery_status == 'complete' %}
                                 —
                             {% else %}
-                               {{ item.quantity_outstanding|floatformat:0 }} {{ item.product.unit }} remaining
+                                {{ item.quantity_outstanding|floatformat:0 }} {{ item.product.unit }} remaining
                             {% endif %}
                         </td>
                         <td>
@@ -82,8 +80,8 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}" 
-                               class="btn btn-sm btn-success">
+                            <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}"
+                            class="btn btn-sm btn-success">
                                 <i class="bi bi-truck"></i> Deliver
                             </a>
                         </td>

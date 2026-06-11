@@ -1494,9 +1494,7 @@ class ShopProduct(models.Model):
 
     def __str__(self):
         if self.product_type == 'egg':
-            if self.egg_grade != 'not_applicable':
-                return f"Egg — {self.get_egg_grade_display()}"
-            return "Egg (Ungraded)"
+            return f"{self.name} (Egg)"
         return f"{self.name} ({self.get_product_type_display()})"
 
 class ShopStock(models.Model):
