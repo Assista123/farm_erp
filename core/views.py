@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404, redirect
+from django import forms
 from django.urls import reverse_lazy
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView,  DeleteView
@@ -1737,21 +1738,30 @@ def shop_sale_receipt(request, pk):
 class ShopDeliveryCreateView(LoginRequiredMixin, CreateView):
     model = ShopDelivery
     template_name = 'core/form.html'
-    fields = ['sale_item', 'delivery_date', 'quantity_delivered', 'delivered_by', 'notes']
-    success_url = reverse_lazy('shopsale-list')
+    fields = ['delivery_date', 'quantity_delivered', 'delivered_by', 'notes']
+
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        form.fields['delivery_date'].widget = forms.DateInput(attrs={'type': 'date'})
+        return form
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Record Delivery'
-        context['cancel_url'] = reverse_lazy('shopsale-list')
+        context['cancel_url'] = self.get_success_url()
         return context
 
-    def get_initial(self):
-        initial = super().get_initial()
-        sale_pk = self.request.GET.get('sale')
-        if sale_pk:
-            initial['sale'] = sale_pk
-        return initial
+    def form_valid(self, form):
+        sale_item_pk = self.request.GET.get('sale_item')
+        form.instance.sale_item = get_object_or_404(ShopSaleItem, pk=sale_item_pk)
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        sale_item_pk = self.request.GET.get('sale_item')
+        if sale_item_pk:
+            sale_item = get_object_or_404(ShopSaleItem, pk=sale_item_pk)
+            return reverse_lazy('shopsale-detail', kwargs={'pk': sale_item.sale.pk})
+        return reverse_lazy('shopsave-list')
 
 
 # ══════════════════════════════════════════════════════════════════
