@@ -4,7 +4,6 @@
 
 {% block content %}
 <style>
-    /* Target Django's default help text class with clean ERP styling */
     .helptext {
         display: block;
         font-size: 0.8rem;
@@ -12,7 +11,6 @@
         font-style: italic;
         margin-top: 0.25rem;
     }
-    /* Custom styling to make form rows stand out cleanly */
     .formset-row {
         transition: all 0.2s ease-in-out;
         background-color: #f8f9fa;
@@ -42,9 +40,7 @@
                     {% for field in form %}
                         <div class="col-md-6 col-lg-4">
                             <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
-                            <div>
-                                {{ field }}
-                            </div>
+                            <div>{{ field }}</div>
                             {% if field.help_text %}
                                 <span class="helptext">{{ field.help_text }}</span>
                             {% endif %}
@@ -66,7 +62,7 @@
             </div>
             <div class="card-body" id="item-formset-container">
                 {{ formset.management_form }}
-                
+
                 {% for item_form in formset %}
                     <div class="item-form-row formset-row border p-3 mb-3 shadow-sm">
                         <div class="row g-3 align-items-end">
@@ -86,7 +82,7 @@
                         </div>
                     </div>
                 {% endfor %}
-                
+
                 <div id="item-empty-form" class="d-none">
                     <div class="item-form-row formset-row border p-3 mb-3 shadow-sm">
                         <div class="row g-3 align-items-end">
@@ -118,7 +114,7 @@
             </div>
             <div class="card-body" id="payment-formset-container">
                 {{ payment_formset.management_form }}
-                
+
                 {% for payment_form in payment_formset %}
                     <div class="payment-form-row formset-row border p-3 mb-3 shadow-sm">
                         <div class="row g-3 align-items-end">
@@ -138,7 +134,7 @@
                         </div>
                     </div>
                 {% endfor %}
-                
+
                 <div id="payment-empty-form" class="d-none">
                     <div class="payment-form-row formset-row border p-3 mb-3 shadow-sm">
                         <div class="row g-3 align-items-end">
@@ -165,22 +161,17 @@
             <button type="submit" class="btn btn-success px-4 shadow-sm">
                 <i class="bi bi-check-circle-fill me-1"></i> Save Sale Transaction
             </button>
-            <a href="{{ cancel_url }}" class="btn btn-outline-secondary px-4">
-                Cancel
-            </a>
+            <a href="{{ cancel_url }}" class="btn btn-outline-secondary px-4">Cancel</a>
         </div>
     </form>
 </div>
 
 <script>
-    // Store fetched prices keyed by product id
     const productPriceCache = {};
 
     function styleFormInputs() {
-        const selectInputs = document.querySelectorAll('select');
-        const textInputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], textarea');
-        selectInputs.forEach(el => el.classList.add('form-select', 'form-select-sm'));
-        textInputs.forEach(el => {
+        document.querySelectorAll('select').forEach(el => el.classList.add('form-select', 'form-select-sm'));
+        document.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], textarea').forEach(el => {
             if (!el.classList.contains('form-check-input')) {
                 el.classList.add('form-control', 'form-control-sm');
             }
@@ -198,9 +189,7 @@
             if (!productId || !productPriceCache[productId] || !quantity) return;
             const prices = productPriceCache[productId];
             const threshold = parseFloat(prices.wholesale_threshold) || 0;
-            const price = quantity >= threshold
-                ? parseFloat(prices.wholesale_price)
-                : parseFloat(prices.retail_price);
+            const price = quantity >= threshold ? parseFloat(prices.wholesale_price) : parseFloat(prices.retail_price);
             grandTotal += price * quantity;
         });
 
@@ -209,8 +198,7 @@
             grandTotalEl = document.createElement('div');
             grandTotalEl.id = 'grand-total-display';
             grandTotalEl.className = 'text-end mt-3 mb-2';
-            const container = document.getElementById('item-formset-container');
-            container.appendChild(grandTotalEl);
+            document.getElementById('item-formset-container').appendChild(grandTotalEl);
         }
         grandTotalEl.innerHTML = `
             <span class="badge bg-success fs-5 px-4 py-2 shadow-sm">
@@ -223,7 +211,6 @@
         const productSelect = row.querySelector('select[id$="-product"]');
         const quantityInput = row.querySelector('input[id$="-quantity"]');
         let rowTotalEl = row.querySelector('.row-total');
-
         if (!productSelect || !quantityInput) return;
         const productId = productSelect.value;
         const quantity = parseFloat(quantityInput.value) || 0;
@@ -236,9 +223,7 @@
 
         const prices = productPriceCache[productId];
         const threshold = parseFloat(prices.wholesale_threshold) || 0;
-        const price = quantity >= threshold
-            ? parseFloat(prices.wholesale_price)
-            : parseFloat(prices.retail_price);
+        const price = quantity >= threshold ? parseFloat(prices.wholesale_price) : parseFloat(prices.retail_price);
         const total = price * quantity;
         const pricingLabel = quantity >= threshold ? 'Wholesale' : 'Retail';
 
@@ -247,12 +232,20 @@
             rowTotalEl.className = 'row-total mt-2 text-end fw-bold text-success';
             row.appendChild(rowTotalEl);
         }
-
         rowTotalEl.innerHTML = `
             <span class="badge bg-light text-dark border me-1">${pricingLabel} @ ₦${price.toLocaleString()}/${prices.unit}</span>
             <span class="badge bg-success fs-6">Row Total: ₦${total.toLocaleString()}</span>
         `;
         updateGrandTotal();
+    }
+
+    function buildPriceDisplay(data) {
+        const stockBadgeClass = parseFloat(data.current_stock) > 0 ? 'bg-info' : 'bg-danger';
+        return `
+            <span class="badge bg-secondary me-1">Retail: ₦${data.retail_price}/${data.unit}</span>
+            <span class="badge bg-success me-1">Wholesale: ₦${data.wholesale_price}/${data.unit} (≥${data.wholesale_threshold} ${data.unit})</span>
+            <span class="badge ${stockBadgeClass}">Stock: ${data.current_stock} ${data.unit}</span>
+        `;
     }
 
     function attachPriceLookup(row) {
@@ -276,11 +269,7 @@
             }
 
             if (productPriceCache[productId]) {
-                const data = productPriceCache[productId];
-                priceDisplay.innerHTML = `
-                    <span class="badge bg-secondary me-1">Retail: ₦${data.retail_price}/${data.unit}</span>
-                    <span class="badge bg-success">Wholesale: ₦${data.wholesale_price}/${data.unit} (≥${data.wholesale_threshold} ${data.unit})</span>
-                `;
+                priceDisplay.innerHTML = buildPriceDisplay(productPriceCache[productId]);
                 calculateRowTotal(row);
                 return;
             }
@@ -289,10 +278,7 @@
                 .then(res => res.json())
                 .then(data => {
                     productPriceCache[productId] = data;
-                    priceDisplay.innerHTML = `
-                        <span class="badge bg-secondary me-1">Retail: ₦${data.retail_price}/${data.unit}</span>
-                        <span class="badge bg-success">Wholesale: ₦${data.wholesale_price}/${data.unit} (≥${data.wholesale_threshold} ${data.unit})</span>
-                    `;
+                    priceDisplay.innerHTML = buildPriceDisplay(data);
                     calculateRowTotal(row);
                 })
                 .catch(() => { priceDisplay.innerHTML = ''; });
@@ -319,9 +305,7 @@
         const emptyFormTemplate = emptyFormWrapper.firstElementChild;
 
         const newRow = emptyFormTemplate.cloneNode(true);
-        const regex = new RegExp('__prefix__', 'g');
-        newRow.innerHTML = newRow.innerHTML.replace(regex, currentFormCount);
-
+        newRow.innerHTML = newRow.innerHTML.replace(/__prefix__/g, currentFormCount);
         container.insertBefore(newRow, emptyFormWrapper);
 
         currentFormCount++;
@@ -334,7 +318,6 @@
         }
 
         styleFormInputs();
-
         attachPriceLookup(newRow);
     }
 
@@ -348,9 +331,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         styleFormInputs();
-        document.querySelectorAll('.item-form-row').forEach(row => {
-            attachPriceLookup(row);
-        });
+        document.querySelectorAll('.item-form-row').forEach(row => attachPriceLookup(row));
         const paymentFormsCount = parseInt(document.querySelector('#id_payments-TOTAL_FORMS').value);
         if (paymentFormsCount >= 3) {
             const btn = document.getElementById('add-payment-btn');

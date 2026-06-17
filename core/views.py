@@ -1855,17 +1855,22 @@ class MortalityRecordUpdateView(LoginRequiredMixin, UpdateView):
 
 @login_required
 def shop_product_prices(request):
-    """Return retail and wholesale price for a given product."""
+    """Return retail and wholesale price and current stock for a given product."""
     product_id = request.GET.get('product_id')
     if not product_id:
         return JsonResponse({}, status=400)
     try:
         product = ShopProduct.objects.get(pk=product_id)
+        try:
+            current_stock = str(product.stock.current_quantity)
+        except Exception:
+            current_stock = '0'
         return JsonResponse({
             'retail_price': str(product.retail_price),
             'wholesale_price': str(product.wholesale_price),
             'wholesale_threshold': str(product.wholesale_threshold),
             'unit': product.unit,
+            'current_stock': current_stock,
         })
     except ShopProduct.DoesNotExist:
         return JsonResponse({}, status=404)
