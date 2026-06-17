@@ -173,45 +173,12 @@
 </div>
 
 <script>
-    function addFormsetRow(prefix, containerId, emptyFormId, maxForms = null, buttonId = null) {
-        const totalFormsInput = document.querySelector(`#id_${prefix}-TOTAL_FORMS`);
-        let currentFormCount = parseInt(totalFormsInput.value);
-        
-        if (maxForms && currentFormCount >= maxForms) {
-            alert(`Maximum of ${maxForms} rows allowed for this section.`);
-            return;
-        }
-
-        const container = document.getElementById(containerId);
-        const emptyFormWrapper = document.getElementById(emptyFormId);
-        const emptyFormTemplate = emptyFormWrapper.firstElementChild;
-        
-        const newRow = emptyFormTemplate.cloneNode(true);
-        const regex = new RegExp('__prefix__', 'g');
-        newRow.innerHTML = newRow.innerHTML.replace(regex, currentFormCount);
-        
-        container.insertBefore(newRow, emptyFormWrapper);
-        
-        currentFormCount++;
-        totalFormsInput.value = currentFormCount;
-
-        if (maxForms && currentFormCount >= maxForms && buttonId) {
-            const btn = document.getElementById(buttonId);
-            btn.disabled = true;
-            btn.className = "btn btn-sm btn-secondary";
-        }
-
-        styleFormInputs();
-
-        // Attach price lookup and total calc to new row
-        const allRows = container.querySelectorAll('.item-form-row');
-        attachPriceLookup(allRows[allRows.length - 1]);
-    }
+    // Store fetched prices keyed by product id
+    const productPriceCache = {};
 
     function styleFormInputs() {
         const selectInputs = document.querySelectorAll('select');
         const textInputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="date"], textarea');
-        
         selectInputs.forEach(el => el.classList.add('form-select', 'form-select-sm'));
         textInputs.forEach(el => {
             if (!el.classList.contains('form-check-input')) {
@@ -220,8 +187,37 @@
         });
     }
 
-    // Store fetched prices keyed by product id
-    const productPriceCache = {};
+    function updateGrandTotal() {
+        let grandTotal = 0;
+        document.querySelectorAll('.item-form-row').forEach(row => {
+            const productSelect = row.querySelector('select[id$="-product"]');
+            const quantityInput = row.querySelector('input[id$="-quantity"]');
+            if (!productSelect || !quantityInput) return;
+            const productId = productSelect.value;
+            const quantity = parseFloat(quantityInput.value) || 0;
+            if (!productId || !productPriceCache[productId] || !quantity) return;
+            const prices = productPriceCache[productId];
+            const threshold = parseFloat(prices.wholesale_threshold) || 0;
+            const price = quantity >= threshold
+                ? parseFloat(prices.wholesale_price)
+                : parseFloat(prices.retail_price);
+            grandTotal += price * quantity;
+        });
+
+        let grandTotalEl = document.getElementById('grand-total-display');
+        if (!grandTotalEl) {
+            grandTotalEl = document.createElement('div');
+            grandTotalEl.id = 'grand-total-display';
+            grandTotalEl.className = 'text-end mt-3 mb-2';
+            const container = document.getElementById('item-formset-container');
+            container.appendChild(grandTotalEl);
+        }
+        grandTotalEl.innerHTML = `
+            <span class="badge bg-success fs-5 px-4 py-2 shadow-sm">
+                <i class="bi bi-calculator me-1"></i> Estimated Total: ₦${grandTotal.toLocaleString()}
+            </span>
+        `;
+    }
 
     function calculateRowTotal(row) {
         const productSelect = row.querySelector('select[id$="-product"]');
@@ -229,7 +225,6 @@
         let rowTotalEl = row.querySelector('.row-total');
 
         if (!productSelect || !quantityInput) return;
-
         const productId = productSelect.value;
         const quantity = parseFloat(quantityInput.value) || 0;
 
@@ -257,42 +252,7 @@
             <span class="badge bg-light text-dark border me-1">${pricingLabel} @ ₦${price.toLocaleString()}/${prices.unit}</span>
             <span class="badge bg-success fs-6">Row Total: ₦${total.toLocaleString()}</span>
         `;
-
         updateGrandTotal();
-    }
-
-    function updateGrandTotal() {
-        let grandTotal = 0;
-        document.querySelectorAll('.item-form-row').forEach(row => {
-            const productSelect = row.querySelector('select[id$="-product"]');
-            const quantityInput = row.querySelector('input[id$="-quantity"]');
-            if (!productSelect || !quantityInput) return;
-
-            const productId = productSelect.value;
-            const quantity = parseFloat(quantityInput.value) || 0;
-            if (!productId || !productPriceCache[productId] || !quantity) return;
-
-            const prices = productPriceCache[productId];
-            const threshold = parseFloat(prices.wholesale_threshold) || 0;
-            const price = quantity >= threshold
-                ? parseFloat(prices.wholesale_price)
-                : parseFloat(prices.retail_price);
-            grandTotal += price * quantity;
-        });
-
-        let grandTotalEl = document.getElementById('grand-total-display');
-        if (!grandTotalEl) {
-            grandTotalEl = document.createElement('div');
-            grandTotalEl.id = 'grand-total-display';
-            grandTotalEl.className = 'text-end mt-3 mb-2';
-            const container = document.getElementById('item-formset-container');
-            container.appendChild(grandTotalEl);
-        }
-        grandTotalEl.innerHTML = `
-            <span class="badge bg-success fs-5 px-4 py-2 shadow-sm">
-                <i class="bi bi-calculator me-1"></i> Estimated Total: ₦${grandTotal.toLocaleString()}
-            </span>
-        `;
     }
 
     function attachPriceLookup(row) {
@@ -345,6 +305,39 @@
         }
     }
 
+    function addFormsetRow(prefix, containerId, emptyFormId, maxForms = null, buttonId = null) {
+        const totalFormsInput = document.querySelector(`#id_${prefix}-TOTAL_FORMS`);
+        let currentFormCount = parseInt(totalFormsInput.value);
+
+        if (maxForms && currentFormCount >= maxForms) {
+            alert(`Maximum of ${maxForms} rows allowed for this section.`);
+            return;
+        }
+
+        const container = document.getElementById(containerId);
+        const emptyFormWrapper = document.getElementById(emptyFormId);
+        const emptyFormTemplate = emptyFormWrapper.firstElementChild;
+
+        const newRow = emptyFormTemplate.cloneNode(true);
+        const regex = new RegExp('__prefix__', 'g');
+        newRow.innerHTML = newRow.innerHTML.replace(regex, currentFormCount);
+
+        container.insertBefore(newRow, emptyFormWrapper);
+
+        currentFormCount++;
+        totalFormsInput.value = currentFormCount;
+
+        if (maxForms && currentFormCount >= maxForms && buttonId) {
+            const btn = document.getElementById(buttonId);
+            btn.disabled = true;
+            btn.className = "btn btn-sm btn-secondary";
+        }
+
+        styleFormInputs();
+
+        attachPriceLookup(newRow);
+    }
+
     document.getElementById('add-item-btn').addEventListener('click', function() {
         addFormsetRow('items', 'item-formset-container', 'item-empty-form');
     });
@@ -355,11 +348,9 @@
 
     window.addEventListener('DOMContentLoaded', () => {
         styleFormInputs();
-
         document.querySelectorAll('.item-form-row').forEach(row => {
             attachPriceLookup(row);
         });
-
         const paymentFormsCount = parseInt(document.querySelector('#id_payments-TOTAL_FORMS').value);
         if (paymentFormsCount >= 3) {
             const btn = document.getElementById('add-payment-btn');
