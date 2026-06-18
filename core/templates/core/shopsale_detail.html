@@ -17,7 +17,7 @@
         <p><strong>Date:</strong> {{ sale.sale_date }}</p>
         <p><strong>Total Amount:</strong> ₦{{ sale.total_amount }}</p>
         <p><strong>Amount Paid:</strong> ₦{{ sale.amount_paid }}</p>
-        <p><strong>Balance:</strong> 
+        <p><strong>Balance:</strong>
             {% if sale.amount_outstanding_payment <= 0 %}
                 <span class="badge bg-success">Fully Paid</span>
             {% else %}
@@ -51,6 +51,7 @@
                         <th>Total</th>
                         <th>Delivered</th>
                         <th>Outstanding</th>
+                        <th>Stock Available</th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>
@@ -72,6 +73,19 @@
                         </td>
                         <td>
                             {% if item.delivery_status == 'complete' %}
+                                —
+                            {% elif item.product.stock %}
+                                {% if item.product.stock.current_quantity > 0 %}
+                                    <span class="badge bg-info">{{ item.product.stock.current_quantity }} {{ item.product.unit }}</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Out of stock</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if item.delivery_status == 'complete' %}
                                 <span class="badge bg-success">Complete</span>
                             {% elif item.delivery_status == 'partial' %}
                                 <span class="badge bg-warning text-dark">Partial</span>
@@ -80,10 +94,18 @@
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}"
-                            class="btn btn-sm btn-success">
-                                <i class="bi bi-truck"></i> Deliver
-                            </a>
+                            {% if item.delivery_status != 'complete' %}
+                                <a href="{% url 'shopdelivery-create' %}?sale_item={{ item.pk }}"
+                                   class="btn btn-sm btn-success mb-1">
+                                    <i class="bi bi-truck"></i> Deliver
+                                </a>
+                            {% endif %}
+                            {% if sale.amount_outstanding_payment > 0 %}
+                                <a href="{% url 'shopsalepayment-create' sale.pk %}"
+                                   class="btn btn-sm btn-primary mb-1">
+                                    <i class="bi bi-cash"></i> Pay
+                                </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}

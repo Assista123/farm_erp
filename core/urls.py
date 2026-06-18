@@ -176,4 +176,6 @@ urlpatterns = [
 
     # Product Prices
     path('shop/product/prices/', views.shop_product_prices, name='shopproduct-prices'),
+
+    path('shop/sales/<int:pk>/pay/', views.shopsalepayment_create, name='shopsalepayment-create'),
 ]

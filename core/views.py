@@ -20,6 +20,7 @@ from .forms import (
     DrugPurchaseOrderForm, DrugPurchaseItemFormSet,
     MortalityRecordForm, MortalityRecordItemFormSet,
     ShopSaleForm, ShopSaleItemFormSet, ShopSalePaymentFormSet,
+    ShopSalePaymentForm,
 )
 
 
@@ -119,7 +120,7 @@ def dashboard(request):
     monthly_profit = monthly_sales - monthly_outflow
 
     outstanding_deliveries = ShopSaleItem.objects.filter(
-         delivery_status__in=['pending', 'partial']).count()
+    delivery_status__in=['pending', 'partial']).count()
     customers_today = todays_sales.values('customer').distinct().count()
     low_stock = ShopStock.objects.filter(
         current_quantity__lte=F('reorder_threshold')
@@ -1874,3 +1875,23 @@ def shop_product_prices(request):
         })
     except ShopProduct.DoesNotExist:
         return JsonResponse({}, status=404)
+        
+
+@login_required
+def shopsalepayment_create(request, pk):
+    sale = get_object_or_404(ShopSale, pk=pk)
+    if request.method == 'POST':
+        form = ShopSalePaymentForm(request.POST)
+        if form.is_valid():
+            payment = form.save(commit=False)
+            payment.sale = sale
+            payment.save()
+            return redirect('shopsale-detail', pk=sale.pk)
+    else:
+        form = ShopSalePaymentForm()
+
+    return render(request, 'core/form.html', {
+        'form': form,
+        'title': f'Record Payment — {sale.customer.name if sale.customer else sale.customer_name_walkin or "Walk-in"}',
+        'cancel_url': reverse_lazy('shopsale-detail', kwargs={'pk': sale.pk}),
+    })
