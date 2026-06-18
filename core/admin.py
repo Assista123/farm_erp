@@ -17,7 +17,7 @@ from .models import (
     MortalityRecord, MortalityRecordItem, MortalityAlert,
     CleaningLog, ManureLog,
     MaintenanceFault, MaintenanceRepair, MaintenanceConfirmation,
-     Customer, ShopProduct, ShopStock, ShopStockMovement,
+    Customer, ShopProduct, ShopStock, ShopStockMovement,
     ShopSale, ShopDelivery, ShopOutflow, OldLayerSale, WorkerSalary,
     ShopSalePayment, ProductTypeThreshold,
 )
@@ -275,6 +275,7 @@ class MaintenanceConfirmationAdmin(admin.ModelAdmin):
                     'follow_up_required', 'confirmed_by']
     list_filter = ['fault_resolved', 'follow_up_required']
 
+
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ['name', 'phone', 'customer_type', 'is_active']
@@ -290,10 +291,30 @@ class ShopProductAdmin(admin.ModelAdmin):
     search_fields = ['name']
 
 
+class ShopStockMovementInline(admin.TabularInline):
+    model = ShopStockMovement
+    extra = 0
+    fields = ['movement_type', 'movement_reason', 'quantity',
+              'balance_after', 'batch_number', 'recorded_by', 'recorded_at']
+    ordering = ['-recorded_at']
+    can_delete = True
+
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            return ['balance_after', 'recorded_at']
+        return ['balance_after', 'recorded_at', 'movement_type',
+                'movement_reason', 'quantity', 'batch_number', 'recorded_by']
+
+
 @admin.register(ShopStock)
 class ShopStockAdmin(admin.ModelAdmin):
     list_display = ['product', 'current_quantity', 'reorder_threshold']
-    readonly_fields = ['current_quantity']
+    inlines = [ShopStockMovementInline]
+
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            return []
+        return ['current_quantity']
 
 
 @admin.register(ShopStockMovement)
@@ -301,7 +322,12 @@ class ShopStockMovementAdmin(admin.ModelAdmin):
     list_display = ['shop_stock', 'movement_type', 'movement_reason',
                     'quantity', 'balance_after', 'recorded_at']
     list_filter = ['movement_type', 'movement_reason']
-    readonly_fields = ['balance_after']
+
+    def get_readonly_fields(self, request, obj=None):
+        if request.user.is_superuser:
+            return ['balance_after']
+        return ['balance_after', 'movement_type', 'movement_reason',
+                'quantity', 'batch_number', 'recorded_by']
 
 
 @admin.register(ShopSale)
@@ -342,6 +368,7 @@ class ShopSalePaymentAdmin(admin.ModelAdmin):
 @admin.register(ShopDelivery)
 class ShopDeliveryAdmin(admin.ModelAdmin):
     list_display = ['sale_item', 'delivery_date', 'quantity_delivered', 'delivered_by']
+
 
 @admin.register(ProductTypeThreshold)
 class ProductTypeThresholdAdmin(admin.ModelAdmin):
