@@ -15,6 +15,16 @@
     </div>
 </div>
 
+{% if expiry_alert_count > 0 %}
+<div class="alert alert-warning d-flex align-items-center mb-4" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>
+        <strong>{{ expiry_alert_count }} product{{ expiry_alert_count|pluralize }}</strong>
+        expiring soon or already expired. Review the Expiry Date column below.
+    </div>
+</div>
+{% endif %}
+
 <div class="card">
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -33,12 +43,19 @@
                 </thead>
                 <tbody>
                     {% for stock in stocks %}
-                    <tr>
-                        <td>{{ stock.product.name }}</td>
+                    <tr{% if stock.expiry_alert == 'expired' %} class="table-danger"{% elif stock.expiry_alert == 'warning' %} class="table-warning"{% endif %}>
+                        <td>{{ stock.product }}</td>
                         <td>{{ stock.current_quantity }}</td>
                         <td>{{ stock.product.unit }}</td>
                         <td>{{ stock.current_batch_number|default:"—" }}</td>
-                        <td>{{ stock.current_expiry_date|default:"—" }}</td>
+                        <td>
+                            {{ stock.current_expiry_date|default:"—" }}
+                            {% if stock.expiry_alert == 'expired' %}
+                                <span class="badge bg-danger ms-1">Expired</span>
+                            {% elif stock.expiry_alert == 'warning' %}
+                                <span class="badge bg-warning text-dark ms-1">Expiring Soon</span>
+                            {% endif %}
+                        </td>
                         <td>{{ stock.reorder_threshold }}</td>
                         <td>
                             {% if stock.current_quantity <= stock.reorder_threshold %}

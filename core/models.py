@@ -1443,11 +1443,12 @@ class Customer(models.Model):
 
 class ShopProduct(models.Model):
     PRODUCT_TYPE_CHOICES = [
-        ('egg', 'Egg'),
-        ('drug', 'Drug / Supplement'),
-        ('feed', 'Feed'),
-        ('other', 'Other'),
-    ]
+    ('egg', 'Egg'),
+    ('drug', 'Drug / Supplement'),
+    ('feed', 'Feed'),
+    ('injection', 'Injection'),
+    ('other', 'Other'),
+]
 
     EGG_GRADE_CHOICES = [
     ('jumbo', 'Jumbo'),
@@ -1913,3 +1914,26 @@ class WorkerSalary(models.Model):
 
     def __str__(self):
         return f"{self.worker.full_name} — {self.get_month_display()} {self.year}"
+
+class ProductTypeThreshold(models.Model):
+    PRODUCT_TYPE_CHOICES = [
+        ('egg', 'Egg'),
+        ('drug', 'Drug / Supplement'),
+        ('feed', 'Feed'),
+        ('injection', 'Injection'),
+        ('other', 'Other'),
+    ]
+
+    product_type = models.CharField(
+        max_length=20,
+        choices=PRODUCT_TYPE_CHOICES,
+        unique=True
+    )
+    reorder_threshold = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0
+    )
+
+    def __str__(self):
+        return f"{self.get_product_type_display()} — {self.reorder_threshold}"

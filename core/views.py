@@ -1,3 +1,5 @@
+import csv
+
 from django.shortcuts import render, get_object_or_404, redirect
 from django import forms
 from django.urls import reverse_lazy
@@ -11,6 +13,7 @@ from django.db.models import Sum, Count, F
 from .permissions import role_required, get_user_context, get_worker_role
 from django.utils.decorators import method_decorator
 from django.http import JsonResponse
+from django.http import HttpResponse
 
 from .forms import (
     FeedProcurementForm, FeedProcurementItemFormSet,
@@ -1624,8 +1627,35 @@ class ShopStockListView(LoginRequiredMixin, ListView):
     template_name = 'core/shopstock_list.html'
     context_object_name = 'stocks'
 
-import csv
-from django.http import HttpResponse
+    def get_queryset(self):
+        return ShopStock.objects.select_related('product').all()
+
+    def get_context_data(self, **kwargs):
+        from datetime import date, timedelta
+        context = super().get_context_data(**kwargs)
+        today = date.today()
+
+        # Thresholds: drugs=3 months, feed=5 months, others=3 months
+        for stock in context['stocks']:
+            stock.expiry_alert = None
+            if stock.current_expiry_date:
+                days_left = (stock.current_expiry_date - today).days
+                product_type = stock.product.product_type
+                if product_type == 'feed':
+                    threshold_days = 150  # 5 months
+                else:
+                    threshold_days = 90   # 3 months for drugs, injections, others
+
+                if days_left < 0:
+                    stock.expiry_alert = 'expired'
+                elif days_left <= threshold_days:
+                    stock.expiry_alert = 'warning'
+
+        context['expiry_alert_count'] = sum(
+            1 for s in context['stocks'] if s.expiry_alert in ['expired', 'warning']
+        )
+        return context
+
 
 @login_required
 def shop_stock_expiry_export(request):
@@ -1633,19 +1663,28 @@ def shop_stock_expiry_export(request):
     response['Content-Disposition'] = 'attachment; filename="shop_stock_expiry.csv"'
 
     writer = csv.writer(response)
-    writer.writerow(['Product', 'Current Quantity', 'Unit', 'Batch Number', 'Expiry Date'])
+    writer.writerow([
+        'Product', 'Unit', 'Current Stock',
+        'Retail Price', 'Wholesale Price',
+        'Stock Value (Retail)', 'Batch Number', 'Expiry Date'
+    ])
 
     stocks = ShopStock.objects.select_related('product').order_by('current_expiry_date')
     for stock in stocks:
+        retail_value = stock.current_quantity * stock.product.retail_price
         writer.writerow([
             stock.product.name,
-            stock.current_quantity,
             stock.product.unit,
+            stock.current_quantity,
+            stock.product.retail_price,
+            stock.product.wholesale_price,
+            retail_value,
             stock.current_batch_number or '—',
             stock.current_expiry_date or '—',
         ])
 
     return response
+    
 
 class ShopStockDetailView(LoginRequiredMixin, DetailView):
     model = ShopStock

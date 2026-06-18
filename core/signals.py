@@ -21,6 +21,7 @@ from .models import (
     ShopDelivery,
     OldLayerSale,
     WorkerSalary,
+    ProductTypeThreshold,
 )
 
 # ── FLOCK ────────────────────────────────────────────────────────────────────
@@ -279,3 +280,19 @@ def compute_old_layer_sale_total(sender, instance, **kwargs):
 def compute_net_salary(instance, **kwargs):
     net = instance.basic_salary + instance.allowances - instance.deductions
     WorkerSalary.objects.filter(pk=instance.pk).update(net_salary=net)
+
+@receiver(post_save, sender=ShopProduct)
+def create_shop_stock_for_product(sender, instance, created, **kwargs):
+    if created:
+        from .models import ProductTypeThreshold
+        try:
+            threshold = ProductTypeThreshold.objects.get(
+                product_type=instance.product_type
+            ).reorder_threshold
+        except ProductTypeThreshold.DoesNotExist:
+            threshold = 0
+
+        ShopStock.objects.get_or_create(
+            product=instance,
+            defaults={'current_quantity': 0, 'reorder_threshold': threshold}
+        )

@@ -19,7 +19,7 @@ from .models import (
     MaintenanceFault, MaintenanceRepair, MaintenanceConfirmation,
      Customer, ShopProduct, ShopStock, ShopStockMovement,
     ShopSale, ShopDelivery, ShopOutflow, OldLayerSale, WorkerSalary,
-    ShopSalePayment,
+    ShopSalePayment, ProductTypeThreshold,
 )
 
 
@@ -342,3 +342,7 @@ class ShopSalePaymentAdmin(admin.ModelAdmin):
 @admin.register(ShopDelivery)
 class ShopDeliveryAdmin(admin.ModelAdmin):
     list_display = ['sale_item', 'delivery_date', 'quantity_delivered', 'delivered_by']
+
+@admin.register(ProductTypeThreshold)
+class ProductTypeThresholdAdmin(admin.ModelAdmin):
+    list_display = ['product_type', 'reorder_threshold']
