@@ -1784,15 +1784,6 @@ class ShopSalePayment(models.Model):
         help_text="Transfer reference or POS receipt number"
     )
 
-    @property
-    def amount_paid(self):
-        from django.db.models import Sum
-        return self.payments.aggregate(Sum('amount'))['amount__sum'] or 0
-
-    @property
-    def amount_outstanding_payment(self):
-        return self.total_amount - self.amount_paid
-
     def __str__(self):
         return f"{self.get_payment_method_display()} — ₦{self.amount}"
 
@@ -1937,3 +1928,231 @@ class ProductTypeThreshold(models.Model):
 
     def __str__(self):
         return f"{self.get_product_type_display()} — {self.reorder_threshold}"
+
+class CustomerOrder(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('partially_paid', 'Partially Paid'),
+        ('ready', 'Ready for Release'),
+        ('partially_released', 'Partially Released'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name='orders'
+    )
+    product = models.ForeignKey(
+        ShopProduct,
+        on_delete=models.PROTECT,
+        related_name='customer_orders'
+    )
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+
+    price_valid_until = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Leave blank for no expiry. After this date, price may be renegotiated."
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        editable=False
+    )
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name='customer_orders_recorded'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def total_deposited(self):
+        from django.db.models import Sum
+        return self.deposits.aggregate(Sum('amount'))['amount__sum'] or 0
+
+    @property
+    def balance_due(self):
+        return self.total_order_value - self.total_deposited
+
+    @property
+    def is_price_expired(self):
+        from datetime import date
+        if self.price_valid_until:
+            return date.today() > self.price_valid_until
+        return False
+
+    @property
+    def quantity_released(self):
+        from django.db.models import Sum
+        return self.releases.aggregate(
+            Sum('quantity'))['quantity__sum'] or 0
+
+    @property
+    def quantity_outstanding(self):
+        return self.quantity - self.quantity_released
+    
+    @property
+    def agreed_price(self):
+        return self.product.wholesale_price 
+
+    @property
+    def total_order_value(self):
+        return self.quantity * self.product.wholesale_price
+
+    @property
+    def balance_due(self):
+        return self.total_order_value - self.total_deposited
+
+    def __str__(self):
+        return f"{self.customer.name} — {self.product} x {self.quantity}"
+
+class CustomerOrderRelease(models.Model):
+    """Links a CustomerOrder to a ShopSale for a partial or full release."""
+    order = models.ForeignKey(
+        CustomerOrder,
+        on_delete=models.PROTECT,
+        related_name='releases'
+    )
+    sale = models.OneToOneField(
+        ShopSale,
+        on_delete=models.PROTECT,
+        related_name='order_release'
+    )
+    quantity = models.DecimalField(max_digits=10, decimal_places=2)
+    deposits_migrated = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        help_text="Amount of deposits applied to this sale"
+    )
+    released_at = models.DateTimeField(auto_now_add=True)
+    released_by = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name='order_releases'
+    )
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Release — {self.order.customer.name} — {self.quantity} — Sale #{self.sale.pk}"
+
+class CustomerDeposit(models.Model):
+    PAYMENT_METHOD_CHOICES = [
+        ('cash', 'Cash'),
+        ('transfer', 'Bank Transfer'),
+        ('pos', 'POS'),
+    ]
+
+    order = models.ForeignKey(
+        CustomerOrder,
+        on_delete=models.PROTECT,
+        related_name='deposits'
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
+    payment_reference = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Transfer reference or POS receipt number"
+    )
+    payment_date = models.DateField()
+    recorded_by = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name='deposits_recorded'
+    )
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"₦{self.amount} — {self.order.customer.name} — {self.payment_date}"
+
+class CustomerCreditBalance(models.Model):
+    customer = models.OneToOneField(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name='credit_balance'
+    )
+    balance = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0
+    )
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.customer.name} — ₦{self.balance} credit"
+
+
+class CustomerCreditTransaction(models.Model):
+    TRANSACTION_TYPE_CHOICES = [
+        ('credit', 'Credit Added'),
+        ('applied', 'Applied to Order'),
+        ('refunded', 'Refunded'),
+    ]
+
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name='credit_transactions'
+    )
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPE_CHOICES)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    order = models.ForeignKey(
+        CustomerOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='credit_transactions'
+    )
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name='credit_transactions_recorded'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.customer.name} — {self.get_transaction_type_display()} — ₦{self.amount}"
+
+
+class CustomerRefund(models.Model):
+    customer = models.ForeignKey(
+        Customer,
+        on_delete=models.PROTECT,
+        related_name='refunds'
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    order = models.ForeignKey(
+        CustomerOrder,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='refunds'
+    )
+    reason = models.TextField()
+    authorised_by = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name='refunds_authorised'
+    )
+    refund_date = models.DateField()
+    payment_method = models.CharField(
+        max_length=20,
+        choices=[('cash', 'Cash'), ('transfer', 'Bank Transfer'), ('pos', 'POS')]
+    )
+    payment_reference = models.CharField(max_length=200, blank=True)
+    recorded_by = models.ForeignKey(
+        Worker,
+        on_delete=models.PROTECT,
+        related_name='refunds_recorded'
+    )
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.customer.name} — ₦{self.amount} — {self.refund_date}"

@@ -22,6 +22,8 @@ from .models import (
     OldLayerSale,
     WorkerSalary,
     ProductTypeThreshold,
+    CustomerOrder,
+    CustomerDeposit,
 )
 
 # ── FLOCK ────────────────────────────────────────────────────────────────────
@@ -61,7 +63,6 @@ def update_feed_stock_balance(sender, instance, created, **kwargs):
         )
         FeedStock.objects.filter(pk=stock.pk).update(
             current_balance=new_balance,
-            last_movement=instance
         )
 
 # ── DRUG PURCHASE ITEM ────────────────────────────────────────────────────────
@@ -87,7 +88,6 @@ def update_drug_stock_balance(sender, instance, created, **kwargs):
         )
         DrugStock.objects.filter(pk=stock.pk).update(
             current_quantity=new_balance,
-            last_movement=instance
         )
 
 # ── MORTALITY RECORD ITEM ─────────────────────────────────────────────────────
@@ -133,9 +133,17 @@ def compute_manure_total_revenue(sender, instance, **kwargs):
 @receiver(post_save, sender=ShopProduct)
 def create_shop_stock_for_product(sender, instance, created, **kwargs):
     if created:
+        from .models import ProductTypeThreshold
+        try:
+            threshold = ProductTypeThreshold.objects.get(
+                product_type=instance.product_type
+            ).reorder_threshold
+        except ProductTypeThreshold.DoesNotExist:
+            threshold = 0
+
         ShopStock.objects.get_or_create(
             product=instance,
-            defaults={'current_quantity': 0}
+            defaults={'current_quantity': 0, 'reorder_threshold': threshold}
         )
 
 # ── SHOP STOCK MOVEMENT ───────────────────────────────────────────────────────
@@ -171,8 +179,14 @@ def compute_shop_sale_item_totals(sender, instance, created, **kwargs):
     if created:
         from django.db.models import Sum
 
-        pricing_type = 'wholesale' if instance.quantity >= instance.product.wholesale_threshold else 'retail'
-        price_per_unit = instance.product.wholesale_price if pricing_type == 'wholesale' else instance.product.retail_price
+        # Respect pre-set price (e.g. from customer order agreed price)
+        if instance.price_per_unit and instance.price_per_unit > 0:
+            price_per_unit = instance.price_per_unit
+            pricing_type = 'agreed'
+        else:
+            pricing_type = 'wholesale' if instance.quantity >= instance.product.wholesale_threshold else 'retail'
+            price_per_unit = instance.product.wholesale_price if pricing_type == 'wholesale' else instance.product.retail_price
+
         total = instance.quantity * price_per_unit
 
         if instance.quantity_delivered_at_sale >= instance.quantity:
@@ -217,7 +231,7 @@ def compute_shop_sale_item_totals(sender, instance, created, **kwargs):
         except ShopStock.DoesNotExist:
             pass
 
-        # Update parent ShopSale total AND delivery_status
+        # Update parent ShopSale total and delivery_status
         sale = instance.sale
         new_total = sale.items.aggregate(Sum('total_amount'))['total_amount__sum'] or 0
 
@@ -281,18 +295,19 @@ def compute_net_salary(instance, **kwargs):
     net = instance.basic_salary + instance.allowances - instance.deductions
     WorkerSalary.objects.filter(pk=instance.pk).update(net_salary=net)
 
-@receiver(post_save, sender=ShopProduct)
-def create_shop_stock_for_product(sender, instance, created, **kwargs):
-    if created:
-        from .models import ProductTypeThreshold
-        try:
-            threshold = ProductTypeThreshold.objects.get(
-                product_type=instance.product_type
-            ).reorder_threshold
-        except ProductTypeThreshold.DoesNotExist:
-            threshold = 0
+# ── CUSTOMER DEPOSIT ──────────────────────────────────────────────────────────
+@receiver(post_save, sender=CustomerDeposit)
+def update_customer_order_status(sender, instance, **kwargs):
+    order = instance.order
 
-        ShopStock.objects.get_or_create(
-            product=instance,
-            defaults={'current_quantity': 0, 'reorder_threshold': threshold}
-        )
+    # Only the release view controls these statuses — never override them
+    if order.status in ['partially_released', 'completed', 'cancelled']:
+        return
+
+    total = order.total_deposited
+    if total <= 0:
+        status = 'pending'
+    else:
+        status = 'partially_paid'
+
+    CustomerOrder.objects.filter(pk=order.pk).update(status=status)

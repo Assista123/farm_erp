@@ -1,0 +1,78 @@
+{% extends 'core/base.html' %}
+
+{% block title %}New Customer Order — Farm ERP{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Record Customer Order</h4>
+    <a href="{% url 'customerorder-list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            {% for field in form %}
+            <div class="mb-3">
+                <label class="form-label fw-semibold">{{ field.label }}</label>
+                {{ field }}
+                {% if field.help_text %}
+                    <span class="text-muted small">{{ field.help_text }}</span>
+                {% endif %}
+                {% if field.errors %}
+                    <div class="text-danger small">{{ field.errors }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+
+            <!-- Price and total display -->
+            <div class="card bg-light mb-3" id="price_summary" style="display:none!important">
+                <div class="card-body">
+                    <p class="mb-1"><strong>Wholesale Price:</strong> ₦<span id="display_price">0.00</span> per unit</p>
+                    <p class="mb-0"><strong>Order Total:</strong> ₦<span id="display_total">0.00</span></p>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-success">Save Order</button>
+            <a href="{% url 'customerorder-list' %}" class="btn btn-outline-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+
+<script>
+const productSelect = document.getElementById('id_product');
+const quantityInput = document.getElementById('id_quantity');
+const priceSummary = document.getElementById('price_summary');
+const displayPrice = document.getElementById('display_price');
+const displayTotal = document.getElementById('display_total');
+
+let currentPrice = 0;
+
+function updateSummary() {
+    const qty = parseFloat(quantityInput.value) || 0;
+    const total = qty * currentPrice;
+    displayTotal.textContent = total.toLocaleString('en-NG', {minimumFractionDigits: 2});
+    priceSummary.style.display = qty > 0 && currentPrice > 0 ? 'block' : 'none';
+}
+
+productSelect.addEventListener('change', function() {
+    const productId = this.value;
+    if (!productId) return;
+
+    fetch(`/shop/product/prices/?product_id=${productId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.wholesale_price) {
+                currentPrice = parseFloat(data.wholesale_price);
+                displayPrice.textContent = currentPrice.toLocaleString('en-NG', {minimumFractionDigits: 2});
+                priceSummary.style.removeProperty('display');
+                updateSummary();
+            }
+        });
+});
+
+quantityInput.addEventListener('input', updateSummary);
+</script>
+{% endblock %}
