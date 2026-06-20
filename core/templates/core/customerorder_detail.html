@@ -1,0 +1,197 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Order — {{ order.customer.name }} — Farm ERP{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Order — {{ order.customer.name }}</h4>
+    <a href="{% url 'customerorder-list' %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+    <a href="{% url 'customer-ledger' order.customer.pk %}" class="btn btn-outline-info btn-sm">
+    <i class="bi bi-journal-text"></i> View Ledger
+</a>
+</div>
+
+{% if order.is_price_expired %}
+<div class="alert alert-danger d-flex align-items-center mb-4">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div>Price validity expired on <strong>{{ order.price_valid_until }}</strong>. 
+    Consider renegotiating before releasing goods.</div>
+</div>
+{% endif %}
+
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">Order Details</div>
+            <div class="card-body">
+                <p><strong>Customer:</strong> {{ order.customer.name }}</p>
+                <p><strong>Product:</strong> {{ order.product }}</p>
+                <p><strong>Quantity:</strong> {{ order.quantity }} {{ order.product.unit }}</p>
+                <p><strong>Agreed Price:</strong> ₦{{ order.agreed_price }} per {{ order.product.unit }}</p>
+                <p><strong>Total Order Value:</strong> ₦{{ order.total_order_value }}</p>
+                <p><strong>Price Valid Until:</strong>
+                    {% if order.price_valid_until %}
+                        {{ order.price_valid_until }}
+                        {% if order.is_price_expired %}
+                            <span class="badge bg-danger ms-1">Expired</span>
+                        {% endif %}
+                    {% else %}
+                        —
+                    {% endif %}
+                </p>
+                <p><strong>Recorded By:</strong> {{ order.recorded_by.full_name }}</p>
+                <p><strong>Notes:</strong> {{ order.notes|default:"—" }}</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">Payment Summary</div>
+            <div class="card-body">
+                <p><strong>Status:</strong>
+                    {% if order.status == 'completed' %}
+                        <span class="badge bg-success">Completed</span>
+                    {% elif order.status == 'ready' %}
+                        <span class="badge bg-primary">Ready for Release</span>
+                    {% elif order.status == 'partially_paid' %}
+                        <span class="badge bg-warning text-dark">Partially Paid</span>
+                    {% elif order.status == 'cancelled' %}
+                        <span class="badge bg-secondary">Cancelled</span>
+                    {% else %}
+                        <span class="badge bg-danger">Pending</span>
+                    {% endif %}
+                </p>
+                <p><strong>Total Order Value:</strong> ₦{{ order.total_order_value }}</p>
+                <p><strong>Total Deposited:</strong> ₦{{ order.total_deposited }}</p>
+                <p><strong>Balance Due:</strong>
+                    {% if order.balance_due <= 0 %}
+                        <span class="badge bg-success">Fully Paid</span>
+                    {% else %}
+                        <span class="text-danger fw-bold">₦{{ order.balance_due }}</span>
+                    {% endif %}
+                </p>
+
+                <div class="mt-3 d-flex gap-2 flex-wrap">
+                    {% if order.status != 'completed' and order.status != 'cancelled' %}
+                        <a href="{% url 'customerdeposit-create' order.pk %}"
+                           class="btn btn-success btn-sm">
+                            <i class="bi bi-cash"></i> Record Deposit
+                        </a>
+                        <a href="{% url 'customerorder-release' order.pk %}"
+                           class="btn btn-primary btn-sm">
+                            <i class="bi bi-box-arrow-right"></i> Release Goods
+                        </a>
+                    {% endif %}
+                    {% if order.sale %}
+                        <a href="{% url 'shopsale-detail' order.sale.pk %}"
+                           class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-receipt"></i> View Sale
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Deposit History</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Amount</th>
+                        <th>Method</th>
+                        <th>Reference</th>
+                        <th>Recorded By</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for deposit in order.deposits.all %}
+                    <tr>
+                        <td>{{ deposit.payment_date }}</td>
+                        <td>₦{{ deposit.amount }}</td>
+                        <td>{{ deposit.get_payment_method_display }}</td>
+                        <td>{{ deposit.payment_reference|default:"—" }}</td>
+                        <td>{{ deposit.recorded_by.full_name }}</td>
+                        <td>{{ deposit.notes|default:"—" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-3">No deposits yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="card mt-4">
+    <div class="card-header">Release History</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Quantity Released</th>
+                        <th>Deposits Migrated</th>
+                        <th>Sale</th>
+                        <th>Released By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for release in order.releases.all %}
+                    <tr>
+                        <td>{{ release.released_at|date:"M d, Y" }}</td>
+                        <td>{{ release.quantity }} {{ order.product.unit }}</td>
+                        <td>₦{{ release.deposits_migrated }}</td>
+                        <td>
+                            <a href="{% url 'shopsale-detail' release.sale.pk %}">
+                                Sale #{{ release.sale.pk }}
+                            </a>
+                        </td>
+                        <td>{{ release.released_by.full_name }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-3">
+                            No releases yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">Release Summary</div>
+    <div class="card-body">
+        <p><strong>Quantity Ordered:</strong> {{ order.quantity }} {{ order.product.unit }}</p>
+        <p><strong>Quantity Released:</strong> {{ order.quantity_released }} {{ order.product.unit }}</p>
+        <p><strong>Quantity Outstanding:</strong>
+            {% if order.quantity_outstanding <= 0 %}
+                <span class="badge bg-success">Fully Released</span>
+            {% else %}
+                <span class="text-danger fw-bold">
+                    {{ order.quantity_outstanding }} {{ order.product.unit }}
+                </span>
+            {% endif %}
+        </p>
+        <p><strong>Total Deposits Paid:</strong> ₦{{ order.total_deposited }}</p>
+        <p><strong>Total Deposits Migrated to Sales:</strong> ₦{{ total_deposits_migrated }}</p>
+            ₦{% with total=order.releases.all %}
+                {{ total|length }}
+            {% endwith %}
+        </p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Ledger — {{ customer.name }} — Farm ERP{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Customer Ledger — {{ customer.name }}</h4>
+    <a href="{% url 'customer-detail' customer.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <p><strong>Customer:</strong> {{ customer.name }}</p>
+        <p><strong>Type:</strong> {{ customer.get_customer_type_display }}</p>
+        <p><strong>Current Balance:</strong>
+            {% if total_balance > 0 %}
+                <span class="text-danger fw-bold">₦{{ total_balance }} owed to business</span>
+            {% elif total_balance < 0 %}
+                <span class="text-success fw-bold">₦{{ total_balance|slice:"1:" }} credit</span>
+            {% else %}
+                <span class="badge bg-success">Settled</span>
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Transaction History</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Debit (₦)</th>
+                        <th>Credit (₦)</th>
+                        <th>Balance (₦)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr class="{% if entry.type == 'Release' %}table-warning{% elif entry.type == 'Payment' or entry.type == 'Deposit' %}table-success{% endif %}">
+                        <td>{{ entry.date }}</td>
+                        <td><span class="badge {% if entry.type == 'Release' %}bg-warning text-dark{% elif entry.type == 'Deposit' %}bg-success{% elif entry.type == 'Payment' %}bg-primary{% else %}bg-info{% endif %}">{{ entry.type }}</span></td>
+                        <td>{{ entry.description }}</td>
+                        <td>{% if entry.debit %}₦{{ entry.debit }}{% else %}—{% endif %}</td>
+                        <td>{% if entry.credit %}₦{{ entry.credit }}{% else %}—{% endif %}</td>
+                        <td class="{% if entry.balance > 0 %}text-danger{% elif entry.balance < 0 %}text-success{% endif %}fw-bold">
+                            ₦{{ entry.balance }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">No transactions found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

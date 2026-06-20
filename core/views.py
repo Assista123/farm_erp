@@ -4,7 +4,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django import forms
 from django.urls import reverse_lazy
 from django.views.generic import (
-    ListView, DetailView, CreateView, UpdateView,  DeleteView
+    ListView, DetailView, CreateView, UpdateView, DeleteView
 )
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.decorators import login_required
@@ -12,8 +12,7 @@ from datetime import date
 from django.db.models import Sum, Count, F
 from .permissions import role_required, get_user_context, get_worker_role
 from django.utils.decorators import method_decorator
-from django.http import JsonResponse
-from django.http import HttpResponse
+from django.http import JsonResponse, HttpResponse
 
 from .forms import (
     FeedProcurementForm, FeedProcurementItemFormSet,
@@ -26,7 +25,6 @@ from .forms import (
     ShopSalePaymentForm,
 )
 
-
 from .models import (
     FarmUnit, Pen, Worker, Flock, Supplier,
     FlockPlacement, FeedType, DrugAndSupplement, FeedProcurement, FeedDelivery, FeedStock,
@@ -38,8 +36,8 @@ from .models import (
     MaintenanceRepair, MaintenanceConfirmation,
     Customer, ShopProduct, ShopStock, ShopStockMovement,
     ShopSale, ShopSaleItem, ShopDelivery, ShopOutflow, OldLayerSale, WorkerSalary,
-    ShopSalePayment,
-    
+    ShopSalePayment, CustomerOrder, CustomerDeposit,
+    CustomerOrderRelease, CustomerCreditBalance, CustomerCreditTransaction,
 )
 
 
@@ -57,7 +55,6 @@ def dashboard(request):
     default_view = 'shop' if role in ['salesperson', 'accountant'] else 'farm'
     view = request.GET.get('view', default_view)
 
-    # ── FARM DATA ────────────────────────────────────────────────
     total_birds = Flock.objects.filter(
         is_active=True).aggregate(
         Sum('current_count'))['current_count__sum'] or 0
@@ -88,7 +85,6 @@ def dashboard(request):
         date_found=today).aggregate(
         Sum('total_count'))['total_count__sum'] or 0
 
-    # ── SHOP DATA ────────────────────────────────────────────────
     todays_sales = ShopSale.objects.filter(sale_date=today)
     todays_total = todays_sales.aggregate(
         Sum('total_amount'))['total_amount__sum'] or 0
@@ -123,7 +119,7 @@ def dashboard(request):
     monthly_profit = monthly_sales - monthly_outflow
 
     outstanding_deliveries = ShopSaleItem.objects.filter(
-    delivery_status__in=['pending', 'partial']).count()
+        delivery_status__in=['pending', 'partial']).count()
     customers_today = todays_sales.values('customer').distinct().count()
     low_stock = ShopStock.objects.filter(
         current_quantity__lte=F('reorder_threshold')
@@ -132,7 +128,6 @@ def dashboard(request):
     context = {
         'today': today,
         'view': view,
-        # Farm
         'total_birds': total_birds,
         'todays_eggs': todays_eggs,
         'weekly_eggs': weekly_eggs,
@@ -146,7 +141,6 @@ def dashboard(request):
         'high_mortality_today': MortalityRecord.objects.filter(
             is_high_mortality=True, date_found=today).count(),
         'active_flocks': Flock.objects.filter(is_active=True).count(),
-        # Shop
         'todays_total': todays_total,
         'todays_cash': todays_cash,
         'todays_transfer': todays_transfer,
@@ -160,6 +154,7 @@ def dashboard(request):
     }
     context.update(get_user_context(request.user))
     return render(request, 'core/dashboard.html', context)
+
 
 @login_required
 def shopstock_movement_create(request):
@@ -183,13 +178,13 @@ def shopstock_movement_create(request):
         'cancel_url': reverse_lazy('shopstock-list')
     })
 
+
 # ══════════════════════════════════════════════════════════════════
 # REPORTS
 # ══════════════════════════════════════════════════════════════════
 
 @login_required
 def feed_stock_report(request):
-    from django.db.models import F
     stocks = FeedStock.objects.select_related('feed_type').all()
     low_stocks = stocks.filter(current_balance__lte=F('reorder_threshold'))
     context = {
@@ -203,7 +198,6 @@ def feed_stock_report(request):
 
 @login_required
 def egg_production_report(request):
-    from django.db.models import Sum
     from datetime import timedelta
     today = date.today()
     week_start = today - timedelta(days=7)
@@ -244,7 +238,6 @@ def egg_production_report(request):
 
 @login_required
 def mortality_report(request):
-    from django.db.models import Sum
     from datetime import timedelta
     today = date.today()
     week_start = today - timedelta(days=7)
@@ -281,17 +274,12 @@ def mortality_report(request):
 @login_required
 def maintenance_report(request):
     open_faults = MaintenanceFault.objects.filter(
-        status='open'
-    ).order_by('-reported_date')
-
+        status='open').order_by('-reported_date')
     in_progress_faults = MaintenanceFault.objects.filter(
-        status='in_progress'
-    ).order_by('-reported_date')
-
+        status='in_progress').order_by('-reported_date')
     urgent_faults = MaintenanceFault.objects.filter(
         status__in=['open', 'in_progress'],
-        severity='urgent'
-    ).order_by('-reported_date')
+        severity='urgent').order_by('-reported_date')
 
     context = {
         'open_faults': open_faults,
@@ -307,16 +295,11 @@ def maintenance_report(request):
 @login_required
 def pending_confirmations_report(request):
     pending_cleaning = CleaningLog.objects.filter(
-        confirmation_status='pending'
-    ).order_by('-cleaning_date')
-
+        confirmation_status='pending').order_by('-cleaning_date')
     pending_feeding = PenFeedingActivity.objects.filter(
-        supervision__isnull=True
-    ).order_by('-feeding_date')
-
+        supervision__isnull=True).order_by('-feeding_date')
     pending_storage = EggGrading.objects.filter(
-        storage_confirmation__isnull=True
-    ).order_by('-grading_date')
+        storage_confirmation__isnull=True).order_by('-grading_date')
 
     context = {
         'pending_cleaning': pending_cleaning,
@@ -328,7 +311,6 @@ def pending_confirmations_report(request):
     }
     context.update(get_user_context(request.user))
     return render(request, 'core/report_pending_confirmations.html', context)
-
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -346,6 +328,7 @@ class FarmUnitDetailView(LoginRequiredMixin, DetailView):
     template_name = 'core/farmunit_detail.html'
     context_object_name = 'farm_unit'
 
+
 @method_decorator([login_required, role_required('manager', 'director')], name='dispatch')
 class FarmUnitCreateView(LoginRequiredMixin, CreateView):
     model = FarmUnit
@@ -358,6 +341,7 @@ class FarmUnitCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Add Farm Unit'
         context['cancel_url'] = reverse_lazy('farmunit-list')
         return context
+
 
 @method_decorator([login_required, role_required('manager', 'director')], name='dispatch')
 class FarmUnitUpdateView(LoginRequiredMixin, UpdateView):
@@ -390,6 +374,7 @@ class PenCreateView(LoginRequiredMixin, CreateView):
     template_name = 'core/form.html'
     fields = ['name', 'farm_unit', 'capacity', 'is_active']
     success_url = reverse_lazy('pen-list')
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Add Pen'
@@ -435,6 +420,7 @@ class WorkerCreateView(LoginRequiredMixin, CreateView):
         context['cancel_url'] = reverse_lazy('worker-list')
         return context
 
+
 @method_decorator([login_required, role_required('manager', 'director')], name='dispatch')
 class WorkerUpdateView(LoginRequiredMixin, UpdateView):
     model = Worker
@@ -461,6 +447,7 @@ class FlockDetailView(LoginRequiredMixin, DetailView):
     template_name = 'core/flock_detail.html'
     context_object_name = 'flock'
 
+
 @method_decorator([login_required, role_required('manager', 'director')], name='dispatch')
 class FlockCreateView(LoginRequiredMixin, CreateView):
     model = Flock
@@ -479,8 +466,7 @@ class FlockCreateView(LoginRequiredMixin, CreateView):
 class FlockUpdateView(LoginRequiredMixin, UpdateView):
     model = Flock
     template_name = 'core/form.html'
-    fields = ['pen', 'bird_type', 'initial_count', 'date_placed',
-              'date_removed', 'is_active']
+    fields = ['pen', 'bird_type', 'initial_count', 'date_placed', 'date_removed', 'is_active']
     success_url = reverse_lazy('flock-list')
 
     def get_context_data(self, **kwargs):
@@ -514,6 +500,7 @@ class SupplierCreateView(LoginRequiredMixin, CreateView):
         context['cancel_url'] = reverse_lazy('supplier-list')
         return context
 
+
 class SupplierUpdateView(LoginRequiredMixin, UpdateView):
     model = Supplier
     template_name = 'core/form.html'
@@ -525,6 +512,7 @@ class SupplierUpdateView(LoginRequiredMixin, UpdateView):
         context['title'] = 'Edit Supplier'
         context['cancel_url'] = reverse_lazy('supplier-list')
         return context
+
 
 class FlockPlacementListView(LoginRequiredMixin, ListView):
     model = FlockPlacement
@@ -551,6 +539,7 @@ class FlockPlacementCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Record Flock Placement'
         context['cancel_url'] = reverse_lazy('flockplacement-list')
         return context
+
 
 class FeedTypeListView(LoginRequiredMixin, ListView):
     model = FeedType
@@ -687,6 +676,7 @@ class FeedDeliveryDetailView(LoginRequiredMixin, DetailView):
     model = FeedDelivery
     template_name = 'core/feeddelivery_detail.html'
     context_object_name = 'delivery'
+
 
 @login_required
 def feeddelivery_create(request):
@@ -865,13 +855,9 @@ def mortalityrecord_list(request):
 
     mortality_records = MortalityRecord.objects.all().order_by('-date_found')
     alerts_today = MortalityRecord.objects.filter(
-        is_high_mortality=True,
-        date_found=today
-    ).count()
+        is_high_mortality=True, date_found=today).count()
     alerts_three_days = MortalityRecord.objects.filter(
-        is_high_mortality=True,
-        date_found__gte=three_days_ago
-    ).count()
+        is_high_mortality=True, date_found__gte=three_days_ago).count()
 
     context = {
         'mortality_records': mortality_records,
@@ -881,6 +867,33 @@ def mortalityrecord_list(request):
     }
     context.update(get_user_context(request.user))
     return render(request, 'core/mortalityrecord_list.html', context)
+
+@login_required
+def mortalityrecord_create(request):
+    if request.method == 'POST':
+        form = MortalityRecordForm(request.POST)
+        formset = MortalityRecordItemFormSet(request.POST)
+        if form.is_valid() and formset.is_valid():
+            record = form.save()
+            formset.instance = record
+            formset.save()
+            return redirect('mortalityrecord-list')
+        else:
+            return render(request, 'core/formset_form.html', {
+                'form': form,
+                'formset': formset,
+                'title': 'Record Mortality',
+                'cancel_url': reverse_lazy('mortalityrecord-list')
+            })
+    else:
+        form = MortalityRecordForm()
+        formset = MortalityRecordItemFormSet()
+    return render(request, 'core/formset_form.html', {
+        'form': form,
+        'formset': formset,
+        'title': 'Record Mortality',
+        'cancel_url': reverse_lazy('mortalityrecord-list')
+    })
 
 
 class MortalityRecordDetailView(LoginRequiredMixin, DetailView):
@@ -901,7 +914,8 @@ class MortalityRecordCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Record Mortality'
         context['cancel_url'] = reverse_lazy('mortalityrecord-list')
         return context
-    
+
+
 class MortalityRecordDeleteView(LoginRequiredMixin, DeleteView):
     model = MortalityRecord
     template_name = 'core/confirm_delete.html'
@@ -913,6 +927,21 @@ class MortalityRecordDeleteView(LoginRequiredMixin, DeleteView):
         context['message'] = f'Are you sure you want to delete the mortality record for {self.object.pen.name} on {self.object.date_found}?'
         context['cancel_url'] = reverse_lazy('mortalityrecord-list')
         return context
+
+
+class MortalityRecordUpdateView(LoginRequiredMixin, UpdateView):
+    model = MortalityRecord
+    template_name = 'core/form.html'
+    fields = ['flock', 'pen', 'date_found', 'discovered_by',
+              'recorded_by', 'observed_at', 'notes']
+    success_url = reverse_lazy('mortalityrecord-list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Edit Mortality Record'
+        context['cancel_url'] = reverse_lazy('mortalityrecord-list')
+        return context
+
 
 class MortalityAlertListView(LoginRequiredMixin, ListView):
     model = MortalityAlert
@@ -940,6 +969,7 @@ class MortalityAlertCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Record Mortality Alert Response'
         context['cancel_url'] = reverse_lazy('mortalityalert-list')
         return context
+
 
 class DrugStockListView(LoginRequiredMixin, ListView):
     model = DrugStock
@@ -1053,6 +1083,60 @@ class EggTransferCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
+class EggGradingListView(LoginRequiredMixin, ListView):
+    model = EggGrading
+    template_name = 'core/egggrading_list.html'
+    context_object_name = 'gradings'
+    ordering = ['-grading_date']
+
+
+class EggGradingDetailView(LoginRequiredMixin, DetailView):
+    model = EggGrading
+    template_name = 'core/egggrading_detail.html'
+    context_object_name = 'grading'
+
+
+class EggGradingCreateView(LoginRequiredMixin, CreateView):
+    model = EggGrading
+    template_name = 'core/form.html'
+    fields = ['grading_date', 'whole_eggs', 'broken_eggs',
+              'graded_by', 'support_staff', 'notes']
+    success_url = reverse_lazy('egggrading-list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Record Egg Grading'
+        context['cancel_url'] = reverse_lazy('egggrading-list')
+        return context
+
+
+class EggStorageConfirmationListView(LoginRequiredMixin, ListView):
+    model = EggStorageConfirmation
+    template_name = 'core/eggstorageconfirmation_list.html'
+    context_object_name = 'confirmations'
+    ordering = ['-confirmed_at']
+
+
+class EggStorageConfirmationDetailView(LoginRequiredMixin, DetailView):
+    model = EggStorageConfirmation
+    template_name = 'core/eggstorageconfirmation_detail.html'
+    context_object_name = 'confirmation'
+
+
+class EggStorageConfirmationCreateView(LoginRequiredMixin, CreateView):
+    model = EggStorageConfirmation
+    template_name = 'core/form.html'
+    fields = ['grading', 'whole_eggs_stored', 'broken_eggs_stored',
+              'confirmed_by', 'notes']
+    success_url = reverse_lazy('eggstorageconfirmation-list')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Record Egg Storage Confirmation'
+        context['cancel_url'] = reverse_lazy('eggstorageconfirmation-list')
+        return context
+
+
 # ══════════════════════════════════════════════════════════════════
 # OPERATIONS
 # ══════════════════════════════════════════════════════════════════
@@ -1076,11 +1160,13 @@ class CleaningLogCreateView(LoginRequiredMixin, CreateView):
     fields = ['pen', 'cleaning_date', 'cleaning_type', 'swept',
               'general_tidying_done', 'gutter_cleared', 'recorded_by', 'notes']
     success_url = reverse_lazy('cleaninglog-list')
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Record Cleaning'
         context['cancel_url'] = reverse_lazy('cleaninglog-list')
         return context
+
 
 class MaintenanceRepairListView(LoginRequiredMixin, ListView):
     model = MaintenanceRepair
@@ -1136,6 +1222,7 @@ class MaintenanceConfirmationCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Record Repair Confirmation'
         context['cancel_url'] = reverse_lazy('maintenanceconfirmation-list')
         return context
+
 
 class MaintenanceFaultListView(LoginRequiredMixin, ListView):
     model = MaintenanceFault
@@ -1193,97 +1280,6 @@ class ManureLogCreateView(LoginRequiredMixin, CreateView):
         return context
 
 
-
-
-# ── EGG GRADING ──────────────────────────────────────────────────
-
-class EggGradingListView(LoginRequiredMixin, ListView):
-    model = EggGrading
-    template_name = 'core/egggrading_list.html'
-    context_object_name = 'gradings'
-    ordering = ['-grading_date']
-
-
-class EggGradingDetailView(LoginRequiredMixin, DetailView):
-    model = EggGrading
-    template_name = 'core/egggrading_detail.html'
-    context_object_name = 'grading'
-
-
-class EggGradingCreateView(LoginRequiredMixin, CreateView):
-    model = EggGrading
-    template_name = 'core/form.html'
-    fields = ['grading_date', 'whole_eggs', 'broken_eggs',
-              'graded_by', 'support_staff', 'notes']
-    success_url = reverse_lazy('egggrading-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Egg Grading'
-        context['cancel_url'] = reverse_lazy('egggrading-list')
-        return context
-
-
-# ── EGG STORAGE CONFIRMATION ─────────────────────────────────────
-
-class EggStorageConfirmationListView(LoginRequiredMixin, ListView):
-    model = EggStorageConfirmation
-    template_name = 'core/eggstorageconfirmation_list.html'
-    context_object_name = 'confirmations'
-    ordering = ['-confirmed_at']
-
-
-class EggStorageConfirmationDetailView(LoginRequiredMixin, DetailView):
-    model = EggStorageConfirmation
-    template_name = 'core/eggstorageconfirmation_detail.html'
-    context_object_name = 'confirmation'
-
-
-class EggStorageConfirmationCreateView(LoginRequiredMixin, CreateView):
-    model = EggStorageConfirmation
-    template_name = 'core/form.html'
-    fields = ['grading', 'whole_eggs_stored', 'broken_eggs_stored',
-              'confirmed_by', 'notes']
-    success_url = reverse_lazy('eggstorageconfirmation-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Egg Storage Confirmation'
-        context['cancel_url'] = reverse_lazy('eggstorageconfirmation-list')
-        return context
-
-
-# ── FLOCK PLACEMENT ───────────────────────────────────────────────
-
-class FlockPlacementListView(LoginRequiredMixin, ListView):
-    model = FlockPlacement
-    template_name = 'core/flockplacement_list.html'
-    context_object_name = 'placements'
-    ordering = ['-placement_date']
-
-
-class FlockPlacementDetailView(LoginRequiredMixin, DetailView):
-    model = FlockPlacement
-    template_name = 'core/flockplacement_detail.html'
-    context_object_name = 'placement'
-
-
-class FlockPlacementCreateView(LoginRequiredMixin, CreateView):
-    model = FlockPlacement
-    template_name = 'core/form.html'
-    fields = ['flock', 'supplier', 'quantity_received', 'cost_per_bird',
-              'placement_date', 'recorded_by', 'notes']
-    success_url = reverse_lazy('flockplacement-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Flock Placement'
-        context['cancel_url'] = reverse_lazy('flockplacement-list')
-        return context
-
-
-# ── PEN FEEDING SUPERVISION ───────────────────────────────────────
-
 class PenFeedingSupervisionListView(LoginRequiredMixin, ListView):
     model = PenFeedingSupervision
     template_name = 'core/penfeedingsupervision_list.html'
@@ -1304,149 +1300,85 @@ class PenFeedingSupervisionCreateView(LoginRequiredMixin, CreateView):
               'bird_behavior', 'confirmation_status', 'supervised_by', 'notes']
     success_url = reverse_lazy('penfeedingsupervision-list')
 
-def get_context_data(self, **kwargs):
+    def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Record Feeding Supervision'
         context['cancel_url'] = reverse_lazy('penfeedingsupervision-list')
         return context
 
 
-# ── MORTALITY ALERT ───────────────────────────────────────────────
-
-class MortalityAlertListView(LoginRequiredMixin, ListView):
-    model = MortalityAlert
-    template_name = 'core/mortalityalert_list.html'
-    context_object_name = 'alerts'
-    ordering = ['-alert_date']
+class OldLayerSaleListView(LoginRequiredMixin, ListView):
+    model = OldLayerSale
+    template_name = 'core/oldlayersale_list.html'
+    context_object_name = 'sales'
+    ordering = ['-sale_date']
 
 
-class MortalityAlertDetailView(LoginRequiredMixin, DetailView):
-    model = MortalityAlert
-    template_name = 'core/mortalityalert_detail.html'
-    context_object_name = 'alert'
-
-
-@login_required
-def mortalityrecord_create(request):
-    if request.method == 'POST':
-        form = MortalityRecordForm(request.POST)
-        formset = MortalityRecordItemFormSet(request.POST)
-        if form.is_valid() and formset.is_valid():
-            record = form.save()
-            formset.instance = record
-            formset.save()
-            return redirect('mortalityrecord-list')
-        else:
-            # Form or formset is invalid — re-render with errors
-            return render(request, 'core/formset_form.html', {
-                'form': form,
-                'formset': formset,
-                'title': 'Record Mortality',
-                'cancel_url': reverse_lazy('mortalityrecord-list')
-            })
-    else:
-        form = MortalityRecordForm()
-        formset = MortalityRecordItemFormSet()
-    return render(request, 'core/formset_form.html', {
-        'form': form,
-        'formset': formset,
-        'title': 'Record Mortality',
-        'cancel_url': reverse_lazy('mortalityrecord-list')
-    })
-
-
-# ── MAINTENANCE REPAIR ────────────────────────────────────────────
-
-class MaintenanceRepairListView(LoginRequiredMixin, ListView):
-    model = MaintenanceRepair
-    template_name = 'core/maintenancerepair_list.html'
-    context_object_name = 'repairs'
-    ordering = ['-assigned_date']
-
-
-class MaintenanceRepairDetailView(LoginRequiredMixin, DetailView):
-    model = MaintenanceRepair
-    template_name = 'core/maintenancerepair_detail.html'
-    context_object_name = 'repair'
-
-
-class MaintenanceRepairCreateView(LoginRequiredMixin, CreateView):
-    model = MaintenanceRepair
+class OldLayerSaleCreateView(LoginRequiredMixin, CreateView):
+    model = OldLayerSale
     template_name = 'core/form.html'
-    fields = ['fault', 'assigned_to', 'assigned_by', 'assigned_date',
-              'repair_date', 'repair_description', 'materials_used',
-              'repair_cost', 'authorized_by', 'is_temporary_fix',
-              'repaired_by', 'notes']
-    success_url = reverse_lazy('maintenancerepair-list')
+    fields = ['flock', 'sale_date', 'quantity_sold', 'price_per_bird',
+              'buyer_name', 'payment_method', 'payment_reference',
+              'recorded_by', 'notes']
+    success_url = reverse_lazy('oldlayersale-list')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Repair'
-        context['cancel_url'] = reverse_lazy('maintenancerepair-list')
+        context['title'] = 'Record Layer Sale'
+        context['cancel_url'] = reverse_lazy('oldlayersale-list')
         return context
 
 
-# ── MAINTENANCE CONFIRMATION ──────────────────────────────────────
-
-class MaintenanceConfirmationListView(LoginRequiredMixin, ListView):
-    model = MaintenanceConfirmation
-    template_name = 'core/maintenanceconfirmation_list.html'
-    context_object_name = 'confirmations'
-    ordering = ['-confirmed_at']
+class WorkerSalaryListView(LoginRequiredMixin, ListView):
+    model = WorkerSalary
+    template_name = 'core/workersalary_list.html'
+    context_object_name = 'salaries'
+    ordering = ['-year', '-month']
 
 
-class MaintenanceConfirmationDetailView(LoginRequiredMixin, DetailView):
-    model = MaintenanceConfirmation
-    template_name = 'core/maintenanceconfirmation_detail.html'
-    context_object_name = 'confirmation'
-
-
-class MaintenanceConfirmationCreateView(LoginRequiredMixin, CreateView):
-    model = MaintenanceConfirmation
+class WorkerSalaryCreateView(LoginRequiredMixin, CreateView):
+    model = WorkerSalary
     template_name = 'core/form.html'
-    fields = ['repair', 'inspection_date', 'fault_resolved', 'confirmed_by',
-              'follow_up_required', 'follow_up_notes', 'notes']
-    success_url = reverse_lazy('maintenanceconfirmation-list')
+    fields = ['worker', 'month', 'year', 'basic_salary', 'allowances',
+              'deductions', 'payment_date', 'payment_method', 'paid_by', 'notes']
+    success_url = reverse_lazy('workersalary-list')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Repair Confirmation'
-        context['cancel_url'] = reverse_lazy('maintenanceconfirmation-list')
+        context['title'] = 'Record Salary Payment'
+        context['cancel_url'] = reverse_lazy('workersalary-list')
         return context
+
 
 # ══════════════════════════════════════════════════════════════════
-# FARM DASHBOARD
+# DASHBOARDS
 # ══════════════════════════════════════════════════════════════════
 
 @login_required
 def farm_dashboard(request):
     from datetime import timedelta
-    from django.db.models import Sum
     today = date.today()
     week_start = today - timedelta(days=7)
 
     total_birds = Flock.objects.filter(
         is_active=True).aggregate(
         Sum('current_count'))['current_count__sum'] or 0
-
     todays_eggs = EggCollection.objects.filter(
         collection_date=today).aggregate(
         Sum('observed_count'))['observed_count__sum'] or 0
-
     weekly_eggs = EggCollection.objects.filter(
         collection_date__gte=week_start).aggregate(
         Sum('observed_count'))['observed_count__sum'] or 0
-
     last_week_start = week_start - timedelta(days=7)
     last_week_eggs = EggCollection.objects.filter(
         collection_date__gte=last_week_start,
         collection_date__lt=week_start).aggregate(
         Sum('observed_count'))['observed_count__sum'] or 0
-
-    weekly_lay_pct = round((weekly_eggs / (total_birds * 7)) * 100, 1) if total_birds > 0 else 0
-    last_week_lay_pct = round((last_week_eggs / (total_birds * 7)) * 100, 1) if total_birds > 0 else 0
+    weekly_lay_pct = round(
+        (weekly_eggs / (total_birds * 7)) * 100, 1) if total_birds > 0 else 0
+    last_week_lay_pct = round(
+        (last_week_eggs / (total_birds * 7)) * 100, 1) if total_birds > 0 else 0
     lay_trend = 'up' if weekly_lay_pct >= last_week_lay_pct else 'down'
-
     todays_mortality = MortalityRecord.objects.filter(
         date_found=today).aggregate(
         Sum('total_count'))['total_count__sum'] or 0
@@ -1471,14 +1403,9 @@ def farm_dashboard(request):
     return render(request, 'core/farm_dashboard.html', context)
 
 
-# ══════════════════════════════════════════════════════════════════
-# SHOP DASHBOARD
-# ══════════════════════════════════════════════════════════════════
-
 @login_required
 def shop_dashboard(request):
     from datetime import timedelta
-    from django.db.models import Sum
     today = date.today()
     week_start = today - timedelta(days=7)
     month_start = today.replace(day=1)
@@ -1491,32 +1418,23 @@ def shop_dashboard(request):
         Sum('total_amount'))['total_amount__sum'] or 0
     todays_pos = todays_sales.filter(payment_method='pos').aggregate(
         Sum('total_amount'))['total_amount__sum'] or 0
-
     todays_outflow = ShopOutflow.objects.filter(
-        outflow_date=today).aggregate(
-        Sum('amount'))['amount__sum'] or 0
-
+        outflow_date=today).aggregate(Sum('amount'))['amount__sum'] or 0
     weekly_sales = ShopSale.objects.filter(
-        sale_date__gte=week_start).aggregate(
-        Sum('total_amount'))['total_amount__sum'] or 0
+        sale_date__gte=week_start).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
     weekly_outflow = ShopOutflow.objects.filter(
-        outflow_date__gte=week_start).aggregate(
-        Sum('amount'))['amount__sum'] or 0
+        outflow_date__gte=week_start).aggregate(Sum('amount'))['amount__sum'] or 0
     weekly_profit = weekly_sales - weekly_outflow
-
     monthly_sales = ShopSale.objects.filter(
-        sale_date__gte=month_start).aggregate(
-        Sum('total_amount'))['total_amount__sum'] or 0
+        sale_date__gte=month_start).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
     monthly_outflow = ShopOutflow.objects.filter(
-        outflow_date__gte=month_start).aggregate(
-        Sum('amount'))['amount__sum'] or 0
+        outflow_date__gte=month_start).aggregate(Sum('amount'))['amount__sum'] or 0
     monthly_profit = monthly_sales - monthly_outflow
 
+    # Fixed — was using delivered=False which doesn't exist
     outstanding_deliveries = ShopSaleItem.objects.filter(
-        delivered=False).count()
-
+        delivery_status__in=['pending', 'partial']).count()
     customers_today = todays_sales.values('customer').distinct().count()
-
     low_stock = ShopStock.objects.filter(
         current_quantity__lte=F('reorder_threshold')
     ).select_related('product')
@@ -1631,26 +1549,17 @@ class ShopStockListView(LoginRequiredMixin, ListView):
         return ShopStock.objects.select_related('product').all()
 
     def get_context_data(self, **kwargs):
-        from datetime import date, timedelta
         context = super().get_context_data(**kwargs)
         today = date.today()
-
-        # Thresholds: drugs=3 months, feed=5 months, others=3 months
         for stock in context['stocks']:
             stock.expiry_alert = None
             if stock.current_expiry_date:
                 days_left = (stock.current_expiry_date - today).days
-                product_type = stock.product.product_type
-                if product_type == 'feed':
-                    threshold_days = 150  # 5 months
-                else:
-                    threshold_days = 90   # 3 months for drugs, injections, others
-
+                threshold_days = 150 if stock.product.product_type == 'feed' else 90
                 if days_left < 0:
                     stock.expiry_alert = 'expired'
                 elif days_left <= threshold_days:
                     stock.expiry_alert = 'warning'
-
         context['expiry_alert_count'] = sum(
             1 for s in context['stocks'] if s.expiry_alert in ['expired', 'warning']
         )
@@ -1661,14 +1570,12 @@ class ShopStockListView(LoginRequiredMixin, ListView):
 def shop_stock_expiry_export(request):
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="shop_stock_expiry.csv"'
-
     writer = csv.writer(response)
     writer.writerow([
         'Product', 'Unit', 'Current Stock',
         'Retail Price', 'Wholesale Price',
         'Stock Value (Retail)', 'Batch Number', 'Expiry Date'
     ])
-
     stocks = ShopStock.objects.select_related('product').order_by('current_expiry_date')
     for stock in stocks:
         retail_value = stock.current_quantity * stock.product.retail_price
@@ -1682,9 +1589,8 @@ def shop_stock_expiry_export(request):
             stock.current_batch_number or '—',
             stock.current_expiry_date or '—',
         ])
-
     return response
-    
+
 
 class ShopStockDetailView(LoginRequiredMixin, DetailView):
     model = ShopStock
@@ -1718,7 +1624,6 @@ def shopsale_create(request):
 
         if form.is_valid() and formset.is_valid() and payment_formset.is_valid():
             sale = form.save()
-
             for item_form in formset:
                 if not item_form.has_changed():
                     continue
@@ -1727,7 +1632,6 @@ def shopsale_create(request):
                 item = item_form.save(commit=False)
                 item.sale = sale
                 item.save()
-
             for payment_form in payment_formset:
                 if not payment_form.has_changed():
                     continue
@@ -1736,16 +1640,8 @@ def shopsale_create(request):
                 payment = payment_form.save(commit=False)
                 payment.sale = sale
                 payment.save()
-
             return redirect('shopsale-list')
         else:
-            print("FORM VALID:", form.is_valid())
-            print("FORM ERRORS:", form.errors)
-            print("FORMSET VALID:", formset.is_valid())
-            print("FORMSET ERRORS:", formset.errors)
-            print("PAYMENT FORMSET VALID:", payment_formset.is_valid())
-            print("PAYMENT FORMSET ERRORS:", payment_formset.errors)
-            print("PAYMENT NON FORM ERRORS:", payment_formset.non_form_errors())
             return render(request, 'core/shopsale_form.html', {
                 'form': form,
                 'formset': formset,
@@ -1753,7 +1649,6 @@ def shopsale_create(request):
                 'title': 'Record Sale',
                 'cancel_url': reverse_lazy('shopsale-list'),
             })
-
     else:
         form = ShopSaleForm()
         formset = ShopSaleItemFormSet(prefix='items')
@@ -1767,13 +1662,12 @@ def shopsale_create(request):
         'cancel_url': reverse_lazy('shopsale-list'),
     })
 
+
 @login_required
 def shop_sale_receipt(request, pk):
     sale = get_object_or_404(ShopSale, pk=pk)
-    context = {
-        'sale': sale,
-    }
-    return render(request, 'core/shopsale_receipt.html', context)
+    return render(request, 'core/shopsale_receipt.html', {'sale': sale})
+
 
 class ShopDeliveryCreateView(LoginRequiredMixin, CreateView):
     model = ShopDelivery
@@ -1801,7 +1695,7 @@ class ShopDeliveryCreateView(LoginRequiredMixin, CreateView):
         if sale_item_pk:
             sale_item = get_object_or_404(ShopSaleItem, pk=sale_item_pk)
             return reverse_lazy('shopsale-detail', kwargs={'pk': sale_item.sale.pk})
-        return reverse_lazy('shopsave-list')
+        return reverse_lazy('shopsale-list')
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -1830,72 +1724,11 @@ class ShopOutflowCreateView(LoginRequiredMixin, CreateView):
 
 
 # ══════════════════════════════════════════════════════════════════
-# OLD LAYER SALE
+# SHOP PRODUCT PRICES API
 # ══════════════════════════════════════════════════════════════════
-
-class OldLayerSaleListView(LoginRequiredMixin, ListView):
-    model = OldLayerSale
-    template_name = 'core/oldlayersale_list.html'
-    context_object_name = 'sales'
-    ordering = ['-sale_date']
-
-
-class OldLayerSaleCreateView(LoginRequiredMixin, CreateView):
-    model = OldLayerSale
-    template_name = 'core/form.html'
-    fields = ['flock', 'sale_date', 'quantity_sold', 'price_per_bird',
-              'buyer_name', 'payment_method', 'payment_reference',
-              'recorded_by', 'notes']
-    success_url = reverse_lazy('oldlayersale-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Layer Sale'
-        context['cancel_url'] = reverse_lazy('oldlayersale-list')
-        return context
-
-
-# ══════════════════════════════════════════════════════════════════
-# WORKER SALARY
-# ══════════════════════════════════════════════════════════════════
-
-class WorkerSalaryListView(LoginRequiredMixin, ListView):
-    model = WorkerSalary
-    template_name = 'core/workersalary_list.html'
-    context_object_name = 'salaries'
-    ordering = ['-year', '-month']
-
-
-class WorkerSalaryCreateView(LoginRequiredMixin, CreateView):
-    model = WorkerSalary
-    template_name = 'core/form.html'
-    fields = ['worker', 'month', 'year', 'basic_salary', 'allowances',
-              'deductions', 'payment_date', 'payment_method', 'paid_by', 'notes']
-    success_url = reverse_lazy('workersalary-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Record Salary Payment'
-        context['cancel_url'] = reverse_lazy('workersalary-list')
-        return context
-
-class MortalityRecordUpdateView(LoginRequiredMixin, UpdateView):
-    model = MortalityRecord
-    template_name = 'core/form.html'
-    fields = ['flock', 'pen', 'date_found', 'discovered_by',
-              'recorded_by', 'observed_at', 'notes']
-    success_url = reverse_lazy('mortalityrecord-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['title'] = 'Edit Mortality Record'
-        context['cancel_url'] = reverse_lazy('mortalityrecord-list')
-        return context
-
 
 @login_required
 def shop_product_prices(request):
-    """Return retail and wholesale price and current stock for a given product."""
     product_id = request.GET.get('product_id')
     if not product_id:
         return JsonResponse({}, status=400)
@@ -1914,7 +1747,7 @@ def shop_product_prices(request):
         })
     except ShopProduct.DoesNotExist:
         return JsonResponse({}, status=404)
-        
+
 
 @login_required
 def shopsalepayment_create(request, pk):
@@ -1928,9 +1761,238 @@ def shopsalepayment_create(request, pk):
             return redirect('shopsale-detail', pk=sale.pk)
     else:
         form = ShopSalePaymentForm()
-
     return render(request, 'core/form.html', {
         'form': form,
         'title': f'Record Payment — {sale.customer.name if sale.customer else sale.customer_name_walkin or "Walk-in"}',
         'cancel_url': reverse_lazy('shopsale-detail', kwargs={'pk': sale.pk}),
     })
+
+
+# ══════════════════════════════════════════════════════════════════
+# CUSTOMER ORDERS
+# ══════════════════════════════════════════════════════════════════
+
+class CustomerOrderListView(LoginRequiredMixin, ListView):
+    model = CustomerOrder
+    template_name = 'core/customerorder_list.html'
+    context_object_name = 'orders'
+
+    def get_queryset(self):
+        return CustomerOrder.objects.select_related(
+            'customer', 'product').all().order_by('-created_at')
+
+
+class CustomerOrderDetailView(LoginRequiredMixin, DetailView):
+    model = CustomerOrder
+    template_name = 'core/customerorder_detail.html'
+    context_object_name = 'order'
+
+    def get_context_data(self, **kwargs):
+        from django.db.models import Sum
+        context = super().get_context_data(**kwargs)
+        context['total_deposits_migrated'] = self.object.releases.aggregate(
+            Sum('deposits_migrated'))['deposits_migrated__sum'] or 0
+        return context
+
+@login_required
+def customerorder_create(request):
+    from .forms import CustomerOrderForm
+    if request.method == 'POST':
+        form = CustomerOrderForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect('customerorder-list')
+    else:
+        form = CustomerOrderForm()
+    return render(request, 'core/customerorder_form.html', {
+        'form': form,
+        'title': 'Record Customer Order',
+        'cancel_url': reverse_lazy('customerorder-list'),
+    })
+
+
+@login_required
+def customerdeposit_create(request, pk):
+    from .forms import CustomerDepositForm
+    order = get_object_or_404(CustomerOrder, pk=pk)
+    if request.method == 'POST':
+        form = CustomerDepositForm(request.POST)
+        if form.is_valid():
+            deposit = form.save(commit=False)
+            deposit.order = order
+            deposit.save()
+            return redirect('customerorder-detail', pk=order.pk)
+    else:
+        form = CustomerDepositForm()
+    return render(request, 'core/form.html', {
+        'form': form,
+        'title': f'Record Deposit — {order.customer.name}',
+        'cancel_url': reverse_lazy('customerorder-detail', kwargs={'pk': order.pk}),
+    })
+
+
+@login_required
+def customerorder_release(request, pk):
+    from django.contrib import messages
+    from decimal import Decimal
+
+    order = get_object_or_404(CustomerOrder, pk=pk)
+
+    if order.status in ['completed', 'cancelled']:
+        messages.error(request, 'Order is already completed or cancelled.')
+        return redirect('customerorder-detail', pk=order.pk)
+
+    if order.quantity_outstanding <= 0:
+        messages.error(request, 'All quantity has already been released.')
+        return redirect('customerorder-detail', pk=order.pk)
+
+    if request.method == 'POST':
+        quantity_to_release = Decimal(
+            request.POST.get('quantity_to_release', order.quantity_outstanding)
+        )
+        close_order = request.POST.get('close_order') == 'yes'
+        excess_action = request.POST.get('excess_action', 'credit')
+
+        if quantity_to_release > order.quantity_outstanding:
+            messages.error(request, 'Cannot release more than outstanding quantity.')
+            return redirect('customerorder-release', pk=order.pk)
+
+        # Capture outstanding BEFORE creating release record
+        quantity_outstanding_before = order.quantity_outstanding
+
+        # Create the sale
+        sale = ShopSale.objects.create(
+            customer=order.customer,
+            sale_date=date.today(),
+            recorded_by=order.recorded_by,
+            notes=f'Released from order #{order.pk}',
+            payment_method='transfer',
+        )
+
+        # Create sale item
+        ShopSaleItem.objects.create(
+            sale=sale,
+            product=order.product,
+            quantity=quantity_to_release,
+            quantity_delivered_at_sale=0,
+        )
+
+        # Calculate deposits to migrate
+        release_value = quantity_to_release * order.agreed_price
+        total_deposited = order.total_deposited
+        amount_to_apply = min(total_deposited, release_value)
+
+        # Migrate deposits as payment on sale
+        if amount_to_apply > 0:
+            ShopSalePayment.objects.create(
+                sale=sale,
+                payment_method='transfer',
+                amount=amount_to_apply,
+                payment_reference=f'Deposits migrated from order #{order.pk}'
+            )
+
+        # Create release record — after this, quantity_outstanding changes
+        CustomerOrderRelease.objects.create(
+            order=order,
+            sale=sale,
+            quantity=quantity_to_release,
+            deposits_migrated=amount_to_apply,
+            released_by=order.recorded_by,
+        )
+
+        # Handle excess deposit if closing order
+        excess = total_deposited - amount_to_apply
+        if excess > 0 and close_order:
+            if excess_action == 'credit':
+                credit, _ = CustomerCreditBalance.objects.get_or_create(
+                    customer=order.customer,
+                    defaults={'balance': 0}
+                )
+                CustomerCreditBalance.objects.filter(pk=credit.pk).update(
+                    balance=credit.balance + excess
+                )
+                CustomerCreditTransaction.objects.create(
+                    customer=order.customer,
+                    transaction_type='credit',
+                    amount=excess,
+                    order=order,
+                    notes=f'Excess deposit from order #{order.pk}',
+                    recorded_by=order.recorded_by
+                )
+
+        # Use captured value — not recalculated after release record created
+        remaining_after_release = quantity_outstanding_before - quantity_to_release
+
+        if close_order or remaining_after_release <= 0:
+            new_status = 'completed'
+        else:
+            new_status = 'partially_released'
+
+        CustomerOrder.objects.filter(pk=order.pk).update(status=new_status)
+
+        messages.success(request, f'Goods released. Sale #{sale.pk} created.')
+        return redirect('shopsale-detail', pk=sale.pk)
+
+    return render(request, 'core/customerorder_confirm_release.html', {
+        'order': order,
+    })
+
+
+@login_required
+def customer_ledger(request, pk):
+    customer = get_object_or_404(Customer, pk=pk)
+    entries = []
+
+    # Deposits
+    for order in customer.orders.prefetch_related('deposits').all():
+        for d in order.deposits.all():
+            entries.append({
+                'date': d.payment_date,
+                'type': 'Deposit',
+                'description': f'Deposit on Order #{order.pk} ({order.product})',
+                'debit': 0,
+                'credit': d.amount,
+            })
+
+    # Releases — goods dispatched create a debit
+    for release in CustomerOrderRelease.objects.filter(
+        order__customer=customer
+    ).select_related('sale', 'order'):
+        entries.append({
+            'date': release.sale.sale_date,
+            'type': 'Release',
+            'description': f'Goods Released — Order #{release.order.pk} — Sale #{release.sale.pk} — {release.quantity} {release.order.product.unit}',
+            'debit': release.sale.total_amount,
+            'credit': 0,
+        })
+
+    # Post-release payments — exclude migrated deposits to avoid double counting
+    for sale in ShopSale.objects.filter(customer=customer):
+        for payment in sale.payments.all():
+            if payment.payment_reference.startswith('Deposits migrated'):
+                continue
+            entries.append({
+                'date': sale.sale_date,
+                'type': 'Payment',
+                'description': f'Payment on Sale #{sale.pk}',
+                'debit': 0,
+                'credit': payment.amount,
+            })
+
+
+    # Sort by date
+    entries.sort(key=lambda x: x['date'])
+
+    # Running balance
+    running_balance = 0
+    for entry in entries:
+        running_balance += entry['debit'] - entry['credit']
+        entry['balance'] = running_balance
+
+    context = {
+        'customer': customer,
+        'entries': entries,
+        'total_balance': running_balance,
+    }
+    context.update(get_user_context(request.user))
+    return render(request, 'core/customer_ledger.html', context)
