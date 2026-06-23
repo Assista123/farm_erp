@@ -1,0 +1,86 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Release Goods — Farm ERP{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Release Goods — {{ order.customer.name }}</h4>
+    <a href="{% url 'customerorder-detail' order.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Back
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-header">Order Summary</div>
+    <div class="card-body">
+        <p><strong>Customer:</strong> {{ order.customer.name }}</p>
+        <p><strong>Product:</strong> {{ order.product }}</p>
+        <p><strong>Quantity Ordered:</strong> {{ order.quantity }} {{ order.product.unit }}</p>
+        <p><strong>Total Order Value:</strong> ₦{{ order.total_order_value }}</p>
+        <p><strong>Total Deposited:</strong> ₦{{ order.total_deposited }}</p>
+        <p><strong>Balance Due:</strong>
+            {% if order.balance_due <= 0 %}
+                <span class="badge bg-success">Fully Paid</span>
+            {% else %}
+                <span class="text-danger fw-bold">₦{{ order.balance_due }}</span>
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <div class="card-header">Release Details</div>
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+
+           <div class="mb-3">
+                <label class="form-label fw-semibold">Quantity to Release</label>
+                <input type="number" name="quantity_to_release"
+                    class="form-control" step="0.01"
+                    value="{{ order.quantity_outstanding }}"
+                    max="{{ order.quantity_outstanding }}" required>
+                <span class="text-muted small">
+                    Maximum: {{ order.quantity_outstanding }} {{ order.product.unit }} remaining
+                    ({{ order.quantity_released }} already released of {{ order.quantity }} ordered)
+                </span>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-semibold">Close Remaining Order?</label>
+                <select name="close_order" class="form-select" id="close_order_select">
+                    <option value="no">No — Keep order open for future release</option>
+                    <option value="yes">Yes — Close order after this release</option>
+                </select>
+            </div>
+
+            <div class="mb-3 d-none" id="excess_action_section">
+                <label class="form-label fw-semibold">Excess Deposit Handling</label>
+                <select name="excess_action" class="form-select">
+                    <option value="credit">Apply as credit to customer's next order</option>
+                    <option value="refund">Issue cash refund (requires Director authorisation)</option>
+                </select>
+                <span class="text-muted small">
+                    Excess deposit: ₦{{ order.total_deposited }} — ₦{{ order.total_order_value }} proportional
+                </span>
+            </div>
+
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-box-arrow-right"></i> Confirm Release
+                </button>
+                <a href="{% url 'customerorder-detail' order.pk %}" class="btn btn-outline-secondary">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.getElementById('close_order_select').addEventListener('change', function() {
+    const excessSection = document.getElementById('excess_action_section');
+    excessSection.classList.toggle('d-none', this.value !== 'yes');
+});
+</script>
+{% endblock %}

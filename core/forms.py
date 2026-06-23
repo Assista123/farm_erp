@@ -8,7 +8,7 @@ from .models import (
     DrugPurchaseOrder, DrugPurchaseItem,
     MortalityRecord, MortalityRecordItem,
     ShopStockMovement, ShopSale, ShopSaleItem,
-    ShopSalePayment,
+    ShopSalePayment, CustomerOrder, CustomerDeposit,
 )
 
 
@@ -232,3 +232,21 @@ ShopSalePaymentFormSet = inlineformset_factory(
     min_num=1,
     validate_min=True
 )
+
+class CustomerOrderForm(forms.ModelForm):
+    class Meta:
+        model = CustomerOrder
+        fields = ['customer', 'product', 'quantity',
+                  'price_valid_until', 'recorded_by', 'notes']
+        widgets = {
+            'price_valid_until': forms.DateInput(attrs={'type': 'date'}),
+        }
+
+class CustomerDepositForm(forms.ModelForm):
+    class Meta:
+        model = CustomerDeposit
+        fields = ['amount', 'payment_method', 'payment_reference',
+                  'payment_date', 'recorded_by', 'notes']
+        widgets = {
+            'payment_date': forms.DateInput(attrs={'type': 'date'}),
+        }

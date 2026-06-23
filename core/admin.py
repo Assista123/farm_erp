@@ -19,7 +19,9 @@ from .models import (
     MaintenanceFault, MaintenanceRepair, MaintenanceConfirmation,
     Customer, ShopProduct, ShopStock, ShopStockMovement,
     ShopSale, ShopDelivery, ShopOutflow, OldLayerSale, WorkerSalary,
-    ShopSalePayment, ProductTypeThreshold,
+    ShopSalePayment, ProductTypeThreshold, CustomerOrder, CustomerDeposit,
+    CustomerCreditBalance, CustomerCreditTransaction, CustomerRefund,
+    CustomerOrderRelease,
 )
 
 
@@ -369,7 +371,42 @@ class ShopSalePaymentAdmin(admin.ModelAdmin):
 class ShopDeliveryAdmin(admin.ModelAdmin):
     list_display = ['sale_item', 'delivery_date', 'quantity_delivered', 'delivered_by']
 
-
 @admin.register(ProductTypeThreshold)
 class ProductTypeThresholdAdmin(admin.ModelAdmin):
     list_display = ['product_type', 'reorder_threshold']
+
+class CustomerDepositInline(admin.TabularInline):
+    model = CustomerDeposit
+    extra = 0
+    fields = ['payment_date', 'amount', 'payment_method', 'payment_reference', 'recorded_by']
+
+@admin.register(CustomerOrder)
+class CustomerOrderAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'product', 'quantity', 'agreed_price',
+                    'total_order_value', 'status', 'price_valid_until']
+    list_filter = ['status']
+    readonly_fields = ['total_order_value', 'status']
+    inlines = [CustomerDepositInline]
+
+@admin.register(CustomerDeposit)
+class CustomerDepositAdmin(admin.ModelAdmin):
+    list_display = ['order', 'amount', 'payment_method', 'payment_date']
+    list_filter = ['payment_method', 'payment_date']
+
+@admin.register(CustomerCreditBalance)
+class CustomerCreditBalanceAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'balance', 'last_updated']
+
+@admin.register(CustomerCreditTransaction)
+class CustomerCreditTransactionAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'transaction_type', 'amount', 'created_at']
+    list_filter = ['transaction_type']
+
+@admin.register(CustomerRefund)
+class CustomerRefundAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'amount', 'refund_date', 'authorised_by']
+    list_filter = ['payment_method']
+
+@admin.register(CustomerOrderRelease)
+class CustomerOrderReleaseAdmin(admin.ModelAdmin):
+    list_display = ['order', 'sale', 'quantity', 'deposits_migrated', 'released_at']

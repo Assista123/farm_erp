@@ -8,6 +8,9 @@
     <a href="{% url 'customer-update' customer.pk %}" class="btn btn-outline-secondary">
         <i class="bi bi-pencil"></i> Edit
     </a>
+    <a href="{% url 'customer-ledger' order.customer.pk %}" class="btn btn-outline-info btn-sm">
+    <i class="bi bi-journal-text"></i> View Ledger
+</a>
 </div>
 
 <div class="card mb-4">

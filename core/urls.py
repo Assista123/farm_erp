@@ -178,4 +178,13 @@ urlpatterns = [
     path('shop/product/prices/', views.shop_product_prices, name='shopproduct-prices'),
 
     path('shop/sales/<int:pk>/pay/', views.shopsalepayment_create, name='shopsalepayment-create'),
+
+    path('shop/orders/', views.CustomerOrderListView.as_view(), name='customerorder-list'),
+
+    path('shop/orders/add/', views.customerorder_create, name='customerorder-create'),
+    path('shop/orders/<int:pk>/', views.CustomerOrderDetailView.as_view(), name='customerorder-detail'),
+    path('shop/orders/<int:pk>/deposit/', views.customerdeposit_create, name='customerdeposit-create'),
+    path('shop/orders/<int:pk>/release/', views.customerorder_release, name='customerorder-release'),
+
+    path('customers/<int:pk>/ledger/', views.customer_ledger, name='customer-ledger'),
 ]

@@ -1,0 +1,85 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Customer Orders — Farm ERP{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h4>Customer Orders</h4>
+    <a href="{% url 'customerorder-create' %}" class="btn btn-success">
+        <i class="bi bi-plus-circle"></i> New Order
+    </a>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Customer</th>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>Agreed Price</th>
+                        <th>Order Value</th>
+                        <th>Deposited</th>
+                        <th>Balance Due</th>
+                        <th>Price Valid Until</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in orders %}
+                    <tr>
+                        <td>{{ order.customer.name }}</td>
+                        <td>{{ order.product }}</td>
+                        <td>{{ order.quantity }} {{ order.product.unit }}</td>
+                        <td>₦{{ order.agreed_price }}</td>
+                        <td>₦{{ order.total_order_value }}</td>
+                        <td>₦{{ order.total_deposited }}</td>
+                        <td>
+                            {% if order.balance_due <= 0 %}
+                                <span class="badge bg-success">Fully Paid</span>
+                            {% else %}
+                                <span class="text-danger fw-bold">₦{{ order.balance_due }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.price_valid_until %}
+                                {% if order.is_price_expired %}
+                                    <span class="badge bg-danger">{{ order.price_valid_until }} — Expired</span>
+                                {% else %}
+                                    {{ order.price_valid_until }}
+                                {% endif %}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if order.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                            {% elif order.status == 'ready' %}
+                                <span class="badge bg-primary">Ready</span>
+                            {% elif order.status == 'partially_paid' %}
+                                <span class="badge bg-warning text-dark">Partial</span>
+                            {% elif order.status == 'cancelled' %}
+                                <span class="badge bg-secondary">Cancelled</span>
+                            {% else %}
+                                <span class="badge bg-danger">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'customerorder-detail' order.pk %}" class="btn btn-sm btn-outline-success">View</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">No orders found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
