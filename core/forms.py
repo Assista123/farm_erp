@@ -8,7 +8,7 @@ from .models import (
     DrugPurchaseOrder, DrugPurchaseItem,
     MortalityRecord, MortalityRecordItem,
     ShopStockMovement, ShopSale, ShopSaleItem,
-    ShopSalePayment, CustomerOrder, CustomerDeposit,
+    ShopSalePayment, ShopProduct, CustomerOrder, CustomerDeposit,
 )
 
 
@@ -194,18 +194,22 @@ class ShopSaleForm(forms.ModelForm):
 class ShopSaleItemForm(forms.ModelForm):
     class Meta:
         model = ShopSaleItem
-        fields = ['product', 'quantity', 'quantity_delivered_at_sale']
+        fields = ['product', 'quantity', 'quantity_delivered_at_sale', 'discount_applied']
+        widgets = {
+            'discount_applied': forms.CheckboxInput(attrs={'class': 'form-check-input discount-checkbox'}),
+        }
 
     def has_changed(self):
-        # Treat a row as empty if nothing was touched
         return any(
             self.data.get(self.add_prefix(f))
             for f in self.fields
         )
+
+
 ShopSaleItemFormSet = inlineformset_factory(
     ShopSale,
     ShopSaleItem,
-    fields=['product', 'quantity', 'quantity_delivered_at_sale'],#
+    fields=['product', 'quantity', 'quantity_delivered_at_sale', 'discount_applied'],
     form=ShopSaleItemForm,
     extra=1,
     can_delete=True,
@@ -250,3 +254,17 @@ class CustomerDepositForm(forms.ModelForm):
         widgets = {
             'payment_date': forms.DateInput(attrs={'type': 'date'}),
         }
+
+class ShopProductForm(forms.ModelForm):
+    class Meta:
+        model = ShopProduct
+        fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
+                  'retail_price', 'wholesale_threshold', 'is_active', 'notes']
+
+
+class ShopProductDirectorForm(forms.ModelForm):
+    class Meta:
+        model = ShopProduct
+        fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
+                  'retail_price', 'wholesale_threshold', 'is_active', 'notes',
+                  'discount_fixed_amount']

@@ -292,7 +292,6 @@ class ShopProductAdmin(admin.ModelAdmin):
     list_filter = ['product_type', 'is_active']
     search_fields = ['name']
 
-
 class ShopStockMovementInline(admin.TabularInline):
     model = ShopStockMovement
     extra = 0

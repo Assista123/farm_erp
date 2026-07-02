@@ -69,6 +69,16 @@
                             {% for field in item_form %}
                                 {% if field.is_hidden %}
                                     {{ field }}
+                                {% elif field.name == 'discount_applied' %}
+                                    <div class="col-md-auto">
+                                        <label class="form-label fw-semibold text-secondary small d-block">{{ field.label }}</label>
+                                        <div class="form-check mt-2">
+                                            {{ field }}
+                                            <label class="form-check-label small text-muted" for="{{ field.id_for_label }}">
+                                                Apply Discount
+                                            </label>
+                                        </div>
+                                    </div>
                                 {% else %}
                                     <div class="col-md">
                                         <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
@@ -89,6 +99,16 @@
                             {% for field in formset.empty_form %}
                                 {% if field.is_hidden %}
                                     {{ field }}
+                                {% elif field.name == 'discount_applied' %}
+                                    <div class="col-md-auto">
+                                        <label class="form-label fw-semibold text-secondary small d-block">{{ field.label }}</label>
+                                        <div class="form-check mt-2">
+                                            {{ field }}
+                                            <label class="form-check-label small text-muted" for="{{ field.id_for_label }}">
+                                                Apply Discount
+                                            </label>
+                                        </div>
+                                    </div>
                                 {% else %}
                                     <div class="col-md">
                                         <label class="form-label fw-semibold text-secondary small">{{ field.label }}</label>
@@ -183,6 +203,7 @@
         document.querySelectorAll('.item-form-row').forEach(row => {
             const productSelect = row.querySelector('select[id$="-product"]');
             const quantityInput = row.querySelector('input[id$="-quantity"]');
+            const discountCheckbox = row.querySelector('input[id$="-discount_applied"]');
             if (!productSelect || !quantityInput) return;
             const productId = productSelect.value;
             const quantity = parseFloat(quantityInput.value) || 0;
@@ -190,7 +211,12 @@
             const prices = productPriceCache[productId];
             const threshold = parseFloat(prices.wholesale_threshold) || 0;
             const price = quantity >= threshold ? parseFloat(prices.wholesale_price) : parseFloat(prices.retail_price);
-            grandTotal += price * quantity;
+            let total = price * quantity;
+            const discountFixed = parseFloat(prices.discount_fixed_amount) || 0;
+            if (discountCheckbox && discountCheckbox.checked && discountFixed > 0) {
+                total = total - (discountFixed * quantity);
+            }
+            grandTotal += total;
         });
 
         let grandTotalEl = document.getElementById('grand-total-display');
@@ -210,6 +236,7 @@
     function calculateRowTotal(row) {
         const productSelect = row.querySelector('select[id$="-product"]');
         const quantityInput = row.querySelector('input[id$="-quantity"]');
+        const discountCheckbox = row.querySelector('input[id$="-discount_applied"]');
         let rowTotalEl = row.querySelector('.row-total');
         if (!productSelect || !quantityInput) return;
         const productId = productSelect.value;
@@ -224,8 +251,19 @@
         const prices = productPriceCache[productId];
         const threshold = parseFloat(prices.wholesale_threshold) || 0;
         const price = quantity >= threshold ? parseFloat(prices.wholesale_price) : parseFloat(prices.retail_price);
-        const total = price * quantity;
         const pricingLabel = quantity >= threshold ? 'Wholesale' : 'Retail';
+        const grossTotal = price * quantity;
+
+        let discountAmount = 0;
+        let discountInfo = '';
+        const discountFixed = parseFloat(prices.discount_fixed_amount) || 0;
+
+        if (discountCheckbox && discountCheckbox.checked && discountFixed > 0) {
+            discountAmount = discountFixed * quantity;
+            discountInfo = `<span class="badge bg-warning text-dark me-1">Discount: ₦${discountFixed}/unit = -₦${discountAmount.toLocaleString()}</span>`;
+        }
+
+        const total = grossTotal - discountAmount;
 
         if (!rowTotalEl) {
             rowTotalEl = document.createElement('div');
@@ -234,6 +272,7 @@
         }
         rowTotalEl.innerHTML = `
             <span class="badge bg-light text-dark border me-1">${pricingLabel} @ ₦${price.toLocaleString()}/${prices.unit}</span>
+            ${discountInfo}
             <span class="badge bg-success fs-6">Row Total: ₦${total.toLocaleString()}</span>
         `;
         updateGrandTotal();
@@ -241,16 +280,22 @@
 
     function buildPriceDisplay(data) {
         const stockBadgeClass = parseFloat(data.current_stock) > 0 ? 'bg-info' : 'bg-danger';
+        let discountBadge = '';
+        if (parseFloat(data.discount_fixed_amount) > 0) {
+            discountBadge = `<span class="badge bg-warning text-dark me-1">Discount Available: ₦${data.discount_fixed_amount}/unit</span>`;
+        }
         return `
             <span class="badge bg-secondary me-1">Retail: ₦${data.retail_price}/${data.unit}</span>
             <span class="badge bg-success me-1">Wholesale: ₦${data.wholesale_price}/${data.unit} (≥${data.wholesale_threshold} ${data.unit})</span>
-            <span class="badge ${stockBadgeClass}">Stock: ${data.current_stock} ${data.unit}</span>
+            <span class="badge ${stockBadgeClass} me-1">Stock: ${data.current_stock} ${data.unit}</span>
+            ${discountBadge}
         `;
     }
 
     function attachPriceLookup(row) {
         const productSelect = row.querySelector('select[id$="-product"]');
         const quantityInput = row.querySelector('input[id$="-quantity"]');
+        const discountCheckbox = row.querySelector('input[id$="-discount_applied"]');
         if (!productSelect) return;
 
         let priceDisplay = row.querySelector('.price-display');
@@ -286,6 +331,12 @@
 
         if (quantityInput) {
             quantityInput.addEventListener('input', function() {
+                calculateRowTotal(row);
+            });
+        }
+
+        if (discountCheckbox) {
+            discountCheckbox.addEventListener('change', function() {
                 calculateRowTotal(row);
             });
         }

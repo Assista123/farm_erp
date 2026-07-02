@@ -169,9 +169,11 @@ def update_shop_stock_balance(sender, instance, created, **kwargs):
 
         ShopStock.objects.filter(pk=stock.pk).update(**update_fields)
 
+
 @receiver(post_delete, sender=ShopStockMovement)
 def recalculate_shop_stock_on_delete(sender, instance, **kwargs):
     instance.shop_stock.recalculate_balance()
+
 
 # ── SHOP SALE ITEM ────────────────────────────────────────────────────────────
 @receiver(post_save, sender=ShopSaleItem)
@@ -187,7 +189,19 @@ def compute_shop_sale_item_totals(sender, instance, created, **kwargs):
             pricing_type = 'wholesale' if instance.quantity >= instance.product.wholesale_threshold else 'retail'
             price_per_unit = instance.product.wholesale_price if pricing_type == 'wholesale' else instance.product.retail_price
 
-        total = instance.quantity * price_per_unit
+        gross_total = instance.quantity * price_per_unit
+
+        # Apply discount using fixed amount per unit
+        if instance.discount_applied:
+            fixed = instance.product.discount_fixed_amount
+            if fixed and fixed > 0:
+                discount_amount = fixed * instance.quantity
+            else:
+                discount_amount = 0
+        else:
+            discount_amount = 0
+
+        total = gross_total - discount_amount
 
         if instance.quantity_delivered_at_sale >= instance.quantity:
             delivery_status = 'complete'
@@ -203,6 +217,7 @@ def compute_shop_sale_item_totals(sender, instance, created, **kwargs):
             price_per_unit=price_per_unit,
             pricing_type=pricing_type,
             total_amount=total,
+            discount_amount=discount_amount,
             delivery_status=delivery_status,
             quantity_delivered=quantity_delivered
         )
@@ -251,6 +266,7 @@ def compute_shop_sale_item_totals(sender, instance, created, **kwargs):
             delivery_status=sale_status
         )
 
+
 # ── SHOP DELIVERY ─────────────────────────────────────────────────────────────
 @receiver(post_save, sender=ShopDelivery)
 def update_sale_item_delivery_status(sender, instance, **kwargs):
@@ -283,17 +299,20 @@ def update_sale_item_delivery_status(sender, instance, **kwargs):
 
     ShopSale.objects.filter(pk=sale.pk).update(delivery_status=sale_status)
 
+
 # ── OLD LAYER SALE ────────────────────────────────────────────────────────────
 @receiver(post_save, sender=OldLayerSale)
 def compute_old_layer_sale_total(sender, instance, **kwargs):
     total = instance.quantity_sold * instance.price_per_bird
     OldLayerSale.objects.filter(pk=instance.pk).update(total_amount=total)
 
+
 # ── WORKER SALARY ─────────────────────────────────────────────────────────────
 @receiver(post_save, sender=WorkerSalary)
 def compute_net_salary(instance, **kwargs):
     net = instance.basic_salary + instance.allowances - instance.deductions
     WorkerSalary.objects.filter(pk=instance.pk).update(net_salary=net)
+
 
 # ── CUSTOMER DEPOSIT ──────────────────────────────────────────────────────────
 @receiver(post_save, sender=CustomerDeposit)

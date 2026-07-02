@@ -1506,6 +1506,7 @@ class ShopProductListView(LoginRequiredMixin, ListView):
     model = ShopProduct
     template_name = 'core/shopproduct_list.html'
     context_object_name = 'products'
+    ordering = ['name']
 
 
 class ShopProductCreateView(LoginRequiredMixin, CreateView):
@@ -1524,15 +1525,21 @@ class ShopProductCreateView(LoginRequiredMixin, CreateView):
 
 class ShopProductUpdateView(LoginRequiredMixin, UpdateView):
     model = ShopProduct
-    template_name = 'core/form.html'
-    fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
-              'retail_price', 'wholesale_threshold', 'is_active', 'notes']
+    template_name = 'core/shopproduct_form.html'
     success_url = reverse_lazy('shopproduct-list')
+
+    def get_form_class(self):
+        from .forms import ShopProductDirectorForm, ShopProductForm
+        role = get_worker_role(self.request.user)
+        if role == 'director' or self.request.user.is_superuser:
+            return ShopProductDirectorForm
+        return ShopProductForm
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Edit Shop Product'
         context['cancel_url'] = reverse_lazy('shopproduct-list')
+        context.update(get_user_context(self.request.user))
         return context
 
 
@@ -1546,7 +1553,7 @@ class ShopStockListView(LoginRequiredMixin, ListView):
     context_object_name = 'stocks'
 
     def get_queryset(self):
-        return ShopStock.objects.select_related('product').all()
+        return ShopStock.objects.select_related('product').order_by('product__name')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -1606,8 +1613,7 @@ class ShopSaleListView(LoginRequiredMixin, ListView):
     model = ShopSale
     template_name = 'core/shopsale_list.html'
     context_object_name = 'sales'
-    ordering = ['-sale_date']
-
+    ordering = ['-sale_date', '-recorded_at']
 
 class ShopSaleDetailView(LoginRequiredMixin, DetailView):
     model = ShopSale
@@ -1744,10 +1750,10 @@ def shop_product_prices(request):
             'wholesale_threshold': str(product.wholesale_threshold),
             'unit': product.unit,
             'current_stock': current_stock,
+            'discount_fixed_amount': str(product.discount_fixed_amount),
         })
     except ShopProduct.DoesNotExist:
         return JsonResponse({}, status=404)
-
 
 @login_required
 def shopsalepayment_create(request, pk):

@@ -1443,38 +1443,37 @@ class Customer(models.Model):
 
 class ShopProduct(models.Model):
     PRODUCT_TYPE_CHOICES = [
-    ('egg', 'Egg'),
-    ('drug', 'Drug / Supplement'),
-    ('feed', 'Feed'),
-    ('injection', 'Injection'),
-    ('other', 'Other'),
-]
+        ('egg', 'Egg'),
+        ('drug', 'Drug / Supplement'),
+        ('feed', 'Feed'),
+        ('injection', 'Injection'),
+        ('other', 'Other'),
+    ]
 
     EGG_GRADE_CHOICES = [
-    ('jumbo', 'Jumbo'),
-    ('normal', 'Normal'),
-    ('new_drop', 'New Drop'),
-    ('cracked', 'Cracked'),
-    ('not_applicable', 'Not Applicable'),
+        ('jumbo', 'Jumbo'),
+        ('normal', 'Normal'),
+        ('new_drop', 'New Drop'),
+        ('cracked', 'Cracked'),
+        ('not_applicable', 'Not Applicable'),
     ]
 
     name = models.CharField(max_length=200)
     product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
-    
     egg_grade = models.CharField(
-    max_length=20,
-    choices=EGG_GRADE_CHOICES,
-    default='not_applicable'
+        max_length=20,
+        choices=EGG_GRADE_CHOICES,
+        default='not_applicable'
     )
     unit = models.CharField(
         max_length=50,
         help_text="e.g. crate, bag, bottle, sachet"
     )
     cost_price = models.DecimalField(
-    max_digits=10,
-    decimal_places=2,
-    default=0,
-    help_text="Cost price per unit for profit calculation"
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Cost price per unit for profit calculation"
     )
     wholesale_price = models.DecimalField(
         max_digits=10,
@@ -1489,6 +1488,12 @@ class ShopProduct(models.Model):
     wholesale_threshold = models.PositiveIntegerField(
         default=5,
         help_text="Minimum quantity to qualify for wholesale price"
+    )
+    discount_fixed_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=0,
+        help_text="Fixed discount amount per unit e.g. ₦100 means ₦100 off per unit"
     )
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
@@ -1713,12 +1718,11 @@ class ShopSaleItem(models.Model):
         default=0,
         editable=False
     )
-
     cost_price_per_unit = models.DecimalField(
-    max_digits=10,
-    decimal_places=2,
-    editable=False,
-    default=0
+        max_digits=10,
+        decimal_places=2,
+        editable=False,
+        default=0
     )
     profit_amount = models.DecimalField(
         max_digits=12,
@@ -1726,10 +1730,25 @@ class ShopSaleItem(models.Model):
         editable=False,
         default=0
     )
+    discount_applied = models.BooleanField(
+        default=False,
+        help_text="Whether discount was applied to this item"
+    )
+    discount_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=0,
+        editable=False,
+        help_text="Computed discount amount — set automatically"
+    )
 
     @property
     def quantity_outstanding(self):
         return self.quantity - self.quantity_delivered
+
+    @property
+    def gross_amount(self):
+        return self.quantity * self.price_per_unit
 
     @property
     def amount_paid(self):

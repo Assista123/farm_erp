@@ -12,6 +12,7 @@
         .receipt-footer { text-align: center; border-top: 2px dashed #000; padding-top: 10px; margin-top: 15px; }
         .receipt-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
         .receipt-total { font-weight: bold; font-size: 1.1rem; border-top: 1px solid #000; padding-top: 8px; margin-top: 8px; }
+        .discount-row { color: #dc3545; font-size: 0.9rem; }
         @media print {
             .no-print { display: none; }
             body { margin: 0; }
@@ -22,7 +23,7 @@
 
 <div class="receipt">
     <div class="receipt-header">
-        <h5 class="fw-bold mb-1">FARM ERP</h5>
+        <h5 class="fw-bold mb-1">SHOP SALE</h5>
         <div class="small">Sales Receipt</div>
         <div class="small">{{ sale.recorded_at|date:"d M Y H:i" }}</div>
     </div>
@@ -45,16 +46,37 @@
     {% for item in sale.items.all %}
     <div class="receipt-row">
         <span><strong>{{ item.product.name }}</strong></span>
-        <span></span>
+        <span>
+            {% if item.pricing_type == 'wholesale' %}
+                <small class="text-muted">(Wholesale)</small>
+            {% elif item.pricing_type == 'retail' %}
+                <small class="text-muted">(Retail)</small>
+            {% elif item.pricing_type == 'agreed' %}
+                <small class="text-muted">(Agreed Price)</small>
+            {% endif %}
+        </span>
     </div>
     <div class="receipt-row">
         <span>{{ item.quantity }} {{ item.product.unit }} × ₦{{ item.price_per_unit }}</span>
+        <span>₦{{ item.gross_amount }}</span>
+    </div>
+    {% if item.discount_applied and item.discount_amount > 0 %}
+    <div class="receipt-row discount-row">
+        <span>Discount (-₦{{ item.product.discount_fixed_amount }}/unit)</span>
+        <span>-₦{{ item.discount_amount }}</span>
+    </div>
+    <div class="receipt-row">
+        <span>Item Total</span>
         <span>₦{{ item.total_amount }}</span>
     </div>
-    {% if not forloop.last %}
+    {% else %}
     <div class="receipt-row">
-        <span style="border-bottom: 1px dotted #ccc; width: 100%;"></span>
+        <span></span>
+        <span>₦{{ item.total_amount }}</span>
     </div>
+    {% endif %}
+    {% if not forloop.last %}
+    <div style="border-bottom: 1px dotted #ccc; margin-bottom: 8px;"></div>
     {% endif %}
     {% empty %}
     <div class="receipt-row">
@@ -68,14 +90,31 @@
     </div>
 
     <div class="receipt-row mt-2">
-        <span>Payment</span>
-        <span>{{ sale.get_payment_method_display }}</span>
+        <span>Amount Paid</span>
+        <span>₦{{ sale.amount_paid }}</span>
     </div>
-    {% if sale.payment_reference %}
-    <div class="receipt-row">
-        <span>Reference</span>
-        <span>{{ sale.payment_reference }}</span>
+
+    {% if sale.amount_outstanding_payment > 0 %}
+    <div class="receipt-row" style="color: #dc3545;">
+        <span>Balance Outstanding</span>
+        <span>₦{{ sale.amount_outstanding_payment }}</span>
     </div>
+    {% else %}
+    <div class="receipt-row" style="color: green;">
+        <span>Balance</span>
+        <span>Fully Paid</span>
+    </div>
+    {% endif %}
+
+   {% if sale.payments.exists %}
+        <hr>
+        <div class="small text-muted mb-1">Payment Details:</div>
+        {% for payment in sale.payments.all %}
+        <div class="receipt-row small">
+            <span>{{ payment.get_payment_method_display }}</span>
+            <span>₦{{ payment.amount }}{% if payment.payment_reference %} — {{ payment.payment_reference }}{% endif %}</span>
+        </div>
+        {% endfor %}
     {% endif %}
 
     <div class="receipt-footer">
