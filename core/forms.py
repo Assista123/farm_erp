@@ -267,4 +267,4 @@ class ShopProductDirectorForm(forms.ModelForm):
         model = ShopProduct
         fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
                   'retail_price', 'wholesale_threshold', 'is_active', 'notes',
-                  'discount_fixed_amount']
+                  'cost_price', 'discount_fixed_amount']

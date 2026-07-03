@@ -5,12 +5,14 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>{{ customer.name }}</h4>
-    <a href="{% url 'customer-update' customer.pk %}" class="btn btn-outline-secondary">
-        <i class="bi bi-pencil"></i> Edit
-    </a>
-    <a href="{% url 'customer-ledger' order.customer.pk %}" class="btn btn-outline-info btn-sm">
-    <i class="bi bi-journal-text"></i> View Ledger
-</a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'customer-ledger' customer.pk %}" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-journal-text"></i> View Ledger
+        </a>
+        <a href="{% url 'customer-update' customer.pk %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-pencil"></i> Edit
+        </a>
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -30,8 +32,8 @@
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">Purchase History</div>
+<div class="card mb-4">
+    <div class="card-header">Customer Orders</div>
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table mb-0">
@@ -40,24 +42,94 @@
                         <th>Date</th>
                         <th>Product</th>
                         <th>Quantity</th>
+                        <th>Order Value</th>
+                        <th>Deposited</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for order in customer.orders.all %}
+                    <tr>
+                        <td>{{ order.created_at|date:"d M Y" }}</td>
+                        <td>{{ order.product }}</td>
+                        <td>{{ order.quantity }} {{ order.product.unit }}</td>
+                        <td>₦{{ order.total_order_value }}</td>
+                        <td>₦{{ order.total_deposited }}</td>
+                        <td>
+                            {% if order.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                            {% elif order.status == 'partially_released' %}
+                                <span class="badge bg-info">Partially Released</span>
+                            {% elif order.status == 'partially_paid' %}
+                                <span class="badge bg-warning text-dark">Partially Paid</span>
+                            {% elif order.status == 'cancelled' %}
+                                <span class="badge bg-secondary">Cancelled</span>
+                            {% else %}
+                                <span class="badge bg-danger">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'customerorder-detail' order.pk %}"
+                               class="btn btn-sm btn-outline-success">View</a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-3">No orders yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">Sales History</div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
                         <th>Total</th>
-                        <th>Payment</th>
-                        <th>Delivered</th>
+                        <th>Amount Paid</th>
+                        <th>Outstanding</th>
+                        <th>Delivery</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for sale in customer.shop_sales.all %}
                     <tr>
                         <td>{{ sale.sale_date }}</td>
-                        <td>{{ sale.product.name }}</td>
-                        <td>{{ sale.quantity }} {{ sale.product.unit }}</td>
                         <td>₦{{ sale.total_amount }}</td>
-                        <td>{{ sale.get_payment_method_display }}</td>
-                        <td>{{ sale.delivered|yesno:"Yes,No" }}</td>
+                        <td>₦{{ sale.amount_paid }}</td>
+                        <td>
+                            {% if sale.amount_outstanding_payment <= 0 %}
+                                <span class="badge bg-success">Paid</span>
+                            {% else %}
+                                <span class="text-danger fw-bold">₦{{ sale.amount_outstanding_payment }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sale.delivery_status == 'complete' %}
+                                <span class="badge bg-success">Complete</span>
+                            {% elif sale.delivery_status == 'partial' %}
+                                <span class="badge bg-warning text-dark">Partial</span>
+                            {% else %}
+                                <span class="badge bg-danger">Pending</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'shopsale-detail' sale.pk %}"
+                               class="btn btn-sm btn-outline-success">View</a>
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-3">No purchases yet.</td>
+                        <td colspan="6" class="text-center text-muted py-3">No sales yet.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
