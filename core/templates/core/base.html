@@ -261,6 +261,13 @@
                             <li class="nav-item">
                                 <a class="nav-link text-dark" href="{% url 'shopoutflow-list' %}">Outflows</a>
                             </li>
+                            {% if is_director %}
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" href="{% url 'director-report' %}">
+                                    <i class="bi bi-file-earmark-bar-graph"></i> Director Report
+                                </a>
+                            </li>
+                            {% endif %}
                         </ul>
                     </div>
                 </li>
@@ -478,7 +485,7 @@
 
                     {% endif %} <!-- end not is_salesperson -->
 
-                    <!-- SALES -->
+                    <!-- SHOP -->
                     {% if is_sales_or_above %}
                     <li class="nav-item">
                         <a class="nav-link text-dark fw-semibold d-flex justify-content-between"
@@ -506,6 +513,13 @@
                                 <li class="nav-item">
                                     <a class="nav-link text-dark" href="{% url 'shopoutflow-list' %}">Outflows</a>
                                 </li>
+                                {% if is_director %}
+                                <li class="nav-item">
+                                    <a class="nav-link text-dark" href="{% url 'director-report' %}">
+                                        <i class="bi bi-file-earmark-bar-graph"></i> Director Report
+                                    </a>
+                                </li>
+                                {% endif %}
                             </ul>
                         </div>
                     </li>

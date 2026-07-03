@@ -22,7 +22,7 @@ from .forms import (
     DrugPurchaseOrderForm, DrugPurchaseItemFormSet,
     MortalityRecordForm, MortalityRecordItemFormSet,
     ShopSaleForm, ShopSaleItemFormSet, ShopSalePaymentFormSet,
-    ShopSalePaymentForm,
+    ShopSalePaymentForm, ShopSalePayment, 
 )
 
 from .models import (
@@ -2002,3 +2002,111 @@ def customer_ledger(request, pk):
     }
     context.update(get_user_context(request.user))
     return render(request, 'core/customer_ledger.html', context)
+
+@login_required
+@role_required('director')
+def director_report(request):
+    from datetime import timedelta
+    from django.db.models import Sum, Count
+
+    # Date filter
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
+    if date_from:
+        from datetime import datetime
+        date_from = datetime.strptime(date_from, '%Y-%m-%d').date()
+    else:
+        date_from = date.today().replace(day=1)
+
+    if date_to:
+        from datetime import datetime
+        date_to = datetime.strptime(date_to, '%Y-%m-%d').date()
+    else:
+        date_to = date.today()
+
+    # ── SALES SUMMARY ────────────────────────────────────────────
+    sales = ShopSale.objects.filter(
+        sale_date__gte=date_from,
+        sale_date__lte=date_to
+    )
+    total_revenue = sales.aggregate(
+        Sum('total_amount'))['total_amount__sum'] or 0
+    total_cash = sales.filter(payment_method='cash').aggregate(
+        Sum('total_amount'))['total_amount__sum'] or 0
+    total_transfer = sales.filter(payment_method='transfer').aggregate(
+        Sum('total_amount'))['total_amount__sum'] or 0
+    total_pos = sales.filter(payment_method='pos').aggregate(
+        Sum('total_amount'))['total_amount__sum'] or 0
+
+    # Total payments received across all sales in period
+    from .models import ShopSalePayment
+    total_paid = ShopSalePayment.objects.filter(
+        sale__sale_date__gte=date_from,
+        sale__sale_date__lte=date_to
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    total_outstanding = total_revenue - total_paid
+
+    # ── OUTFLOWS ─────────────────────────────────────────────────
+    total_outflows = ShopOutflow.objects.filter(
+        outflow_date__gte=date_from,
+        outflow_date__lte=date_to
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    net_profit = total_paid - total_outflows
+
+    # ── PRODUCT PERFORMANCE ───────────────────────────────────────
+    from .models import ShopSaleItem
+    product_performance = ShopSaleItem.objects.filter(
+        sale__sale_date__gte=date_from,
+        sale__sale_date__lte=date_to
+    ).values(
+        'product__name', 'product__unit'
+    ).annotate(
+        total_quantity=Sum('quantity'),
+        total_revenue=Sum('total_amount'),
+        total_discount=Sum('discount_amount'),
+    ).order_by('-total_revenue')
+
+    # ── CUSTOMER DEBT ─────────────────────────────────────────────
+    customer_debts = []
+    for sale in ShopSale.objects.filter(
+        customer__isnull=False
+    ).select_related('customer'):
+        outstanding = sale.amount_outstanding_payment
+        if outstanding > 0:
+            customer_debts.append({
+                'customer': sale.customer.name,
+                'sale_date': sale.sale_date,
+                'sale_id': sale.pk,
+                'total_amount': sale.total_amount,
+                'amount_paid': sale.amount_paid,
+                'outstanding': outstanding,
+            })
+    total_debt = sum(d['outstanding'] for d in customer_debts)
+
+    # ── STOCK SUMMARY ─────────────────────────────────────────────
+    stocks = ShopStock.objects.select_related('product').order_by(
+        'product__name'
+    )
+
+    context = {
+        'date_from': date_from,
+        'date_to': date_to,
+        'total_revenue': total_revenue,
+        'total_cash': total_cash,
+        'total_transfer': total_transfer,
+        'total_pos': total_pos,
+        'total_paid': total_paid,
+        'total_outstanding': total_outstanding,
+        'total_outflows': total_outflows,
+        'net_profit': net_profit,
+        'product_performance': product_performance,
+        'customer_debts': customer_debts,
+        'total_debt': total_debt,
+        'stocks': stocks,
+        'today': date.today(),
+    }
+    context.update(get_user_context(request.user))
+    return render(request, 'core/director_report.html', context)

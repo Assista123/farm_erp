@@ -187,4 +187,6 @@ urlpatterns = [
     path('shop/orders/<int:pk>/release/', views.customerorder_release, name='customerorder-release'),
 
     path('customers/<int:pk>/ledger/', views.customer_ledger, name='customer-ledger'),
+
+    path('shop/reports/director/', views.director_report, name='director-report'),
 ]
