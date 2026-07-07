@@ -17,12 +17,12 @@
 
             <div class="row g-3">
                 {% for field in form %}
-                    {% if field.name == 'discount_fixed_amount' or field.name == 'cost_price' %}
+                    {% if field.name == 'discount_fixed_amount' or field.name == 'cost_price' or field.name == 'reorder_threshold' %}
                         {% if is_director %}
                         <div class="col-md-6">
                            <div class="card border-success mb-0">
                                 <div class="card-header bg-success text-white small fw-semibold">
-                                    <i class="bi bi-shield-lock"></i> Director Setting
+                                    <i class="bi bi-shield-lock"></i> Manager Setting
                                 </div>
                                 <div class="card-body py-2">
                                     <label class="form-label fw-semibold">{{ field.label }}</label>

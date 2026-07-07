@@ -122,7 +122,7 @@ def dashboard(request):
         delivery_status__in=['pending', 'partial']).count()
     customers_today = todays_sales.values('customer').distinct().count()
     low_stock = ShopStock.objects.filter(
-        current_quantity__lte=F('reorder_threshold')
+    current_quantity__lte=F('product__reorder_threshold')
     ).select_related('product')
 
     context = {
@@ -159,6 +159,11 @@ def dashboard(request):
 @login_required
 def shopstock_movement_create(request):
     from .forms import ShopStockMovementForm
+    role = get_worker_role(request.user)
+    if role not in ['manager', 'general_manager', 'director'] and not request.user.is_superuser:
+        from django.contrib import messages
+        messages.error(request, 'You do not have permission to record stock movements.')
+        return redirect('shopstock-list')
     if request.method == 'POST':
         form = ShopStockMovementForm(request.POST)
         if form.is_valid():
@@ -1292,7 +1297,6 @@ class PenFeedingSupervisionDetailView(LoginRequiredMixin, DetailView):
     template_name = 'core/penfeedingsupervision_detail.html'
     context_object_name = 'supervision'
 
-
 class PenFeedingSupervisionCreateView(LoginRequiredMixin, CreateView):
     model = PenFeedingSupervision
     template_name = 'core/form.html'
@@ -1305,7 +1309,6 @@ class PenFeedingSupervisionCreateView(LoginRequiredMixin, CreateView):
         context['title'] = 'Record Feeding Supervision'
         context['cancel_url'] = reverse_lazy('penfeedingsupervision-list')
         return context
-
 
 class OldLayerSaleListView(LoginRequiredMixin, ListView):
     model = OldLayerSale
@@ -1436,7 +1439,7 @@ def shop_dashboard(request):
         delivery_status__in=['pending', 'partial']).count()
     customers_today = todays_sales.values('customer').distinct().count()
     low_stock = ShopStock.objects.filter(
-        current_quantity__lte=F('reorder_threshold')
+    current_quantity__lte=F('product__reorder_threshold')
     ).select_related('product')
 
     context = {
@@ -1511,15 +1514,29 @@ class ShopProductListView(LoginRequiredMixin, ListView):
 
 class ShopProductCreateView(LoginRequiredMixin, CreateView):
     model = ShopProduct
-    template_name = 'core/form.html'
-    fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
-              'retail_price', 'wholesale_threshold', 'notes']
+    template_name = 'core/shopproduct_form.html'
     success_url = reverse_lazy('shopproduct-list')
+
+    def get_form_class(self):
+        from .forms import ShopProductDirectorForm, ShopProductForm
+        role = get_worker_role(self.request.user)
+        if role == 'director' or self.request.user.is_superuser:
+            return ShopProductDirectorForm
+        return ShopProductForm
+
+    def dispatch(self, request, *args, **kwargs):
+        role = get_worker_role(request.user)
+        if role not in ['manager', 'general_manager', 'director'] and not request.user.is_superuser:
+            from django.contrib import messages
+            messages.error(request, 'You do not have permission to add products.')
+            return redirect('shopproduct-list')
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Add Shop Product'
         context['cancel_url'] = reverse_lazy('shopproduct-list')
+        context.update(get_user_context(self.request.user))
         return context
 
 
@@ -1613,7 +1630,11 @@ class ShopSaleListView(LoginRequiredMixin, ListView):
     model = ShopSale
     template_name = 'core/shopsale_list.html'
     context_object_name = 'sales'
-    ordering = ['-sale_date', '-recorded_at']
+
+    def get_queryset(self):
+        return ShopSale.objects.select_related(
+            'customer', 'recorded_by'
+        ).prefetch_related('payments').order_by('-sale_date', '-recorded_at')
 
 class ShopSaleDetailView(LoginRequiredMixin, DetailView):
     model = ShopSale
@@ -1722,12 +1743,17 @@ class ShopOutflowCreateView(LoginRequiredMixin, CreateView):
               'authorized_by', 'recorded_by', 'notes']
     success_url = reverse_lazy('shopoutflow-list')
 
+    def get_form(self, form_class=None):
+        form = super().get_form(form_class)
+        from django import forms
+        form.fields['outflow_date'].widget = forms.DateInput(attrs={'type': 'date'})
+        return form
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Record Outflow'
         context['cancel_url'] = reverse_lazy('shopoutflow-list')
         return context
-
 
 # ══════════════════════════════════════════════════════════════════
 # SHOP PRODUCT PRICES API
@@ -1881,6 +1907,7 @@ def customerorder_release(request, pk):
             product=order.product,
             quantity=quantity_to_release,
             quantity_delivered_at_sale=0,
+            discount_applied=order.discount_applied,
         )
 
         # Calculate deposits to migrate
@@ -2006,21 +2033,19 @@ def customer_ledger(request, pk):
 @login_required
 @role_required('director')
 def director_report(request):
-    from datetime import timedelta
-    from django.db.models import Sum, Count
+    from datetime import datetime
+    from django.db.models import Sum
 
     # Date filter
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
 
     if date_from:
-        from datetime import datetime
         date_from = datetime.strptime(date_from, '%Y-%m-%d').date()
     else:
         date_from = date.today().replace(day=1)
 
     if date_to:
-        from datetime import datetime
         date_to = datetime.strptime(date_to, '%Y-%m-%d').date()
     else:
         date_to = date.today()
@@ -2030,34 +2055,106 @@ def director_report(request):
         sale_date__gte=date_from,
         sale_date__lte=date_to
     )
-    total_revenue = sales.aggregate(
-        Sum('total_amount'))['total_amount__sum'] or 0
-    total_cash = sales.filter(payment_method='cash').aggregate(
-        Sum('total_amount'))['total_amount__sum'] or 0
-    total_transfer = sales.filter(payment_method='transfer').aggregate(
-        Sum('total_amount'))['total_amount__sum'] or 0
-    total_pos = sales.filter(payment_method='pos').aggregate(
+
+    # Gross revenue — total invoiced value
+    gross_revenue = sales.aggregate(
         Sum('total_amount'))['total_amount__sum'] or 0
 
-    # Total payments received across all sales in period
-    from .models import ShopSalePayment
-    total_paid = ShopSalePayment.objects.filter(
+    # Total discounts given across all sale items in period
+    total_discounts = ShopSaleItem.objects.filter(
+        sale__sale_date__gte=date_from,
+        sale__sale_date__lte=date_to,
+        discount_applied=True
+    ).aggregate(Sum('discount_amount'))['discount_amount__sum'] or 0
+
+    # Net revenue after discounts
+    net_revenue = gross_revenue - total_discounts
+
+    # Cash received — actual payments excluding migrated deposits
+    payments_received = ShopSalePayment.objects.filter(
         sale__sale_date__gte=date_from,
         sale__sale_date__lte=date_to
+    ).exclude(
+        payment_reference__startswith='Deposits migrated'
     ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-    total_outstanding = total_revenue - total_paid
+    # Deposits received in period — real cash that came in
+    deposits_received = CustomerDeposit.objects.filter(
+        payment_date__gte=date_from,
+        payment_date__lte=date_to
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-    # ── OUTFLOWS ─────────────────────────────────────────────────
+    total_cash_received = payments_received + deposits_received
+
+    # Outstanding debt — net revenue minus cash received
+    total_outstanding = net_revenue - total_cash_received
+
+    # Payment method breakdown — exclude migrated deposits, include deposit methods
+    total_cash = ShopSalePayment.objects.filter(
+        sale__sale_date__gte=date_from,
+        sale__sale_date__lte=date_to,
+        payment_method='cash'
+    ).exclude(
+        payment_reference__startswith='Deposits migrated'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    total_cash += CustomerDeposit.objects.filter(
+        payment_date__gte=date_from,
+        payment_date__lte=date_to,
+        payment_method='cash'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    total_transfer = ShopSalePayment.objects.filter(
+        sale__sale_date__gte=date_from,
+        sale__sale_date__lte=date_to,
+        payment_method='transfer'
+    ).exclude(
+        payment_reference__startswith='Deposits migrated'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    total_transfer += CustomerDeposit.objects.filter(
+        payment_date__gte=date_from,
+        payment_date__lte=date_to,
+        payment_method='transfer'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    total_pos = ShopSalePayment.objects.filter(
+        sale__sale_date__gte=date_from,
+        sale__sale_date__lte=date_to,
+        payment_method='pos'
+    ).exclude(
+        payment_reference__startswith='Deposits migrated'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    total_pos += CustomerDeposit.objects.filter(
+        payment_date__gte=date_from,
+        payment_date__lte=date_to,
+        payment_method='pos'
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    # Outflows
     total_outflows = ShopOutflow.objects.filter(
         outflow_date__gte=date_from,
         outflow_date__lte=date_to
     ).aggregate(Sum('amount'))['amount__sum'] or 0
 
-    net_profit = total_paid - total_outflows
+    # Net profit — cash received minus outflows
+    net_profit = total_cash_received - total_outflows
+
+    # Deposits held — customer deposits on unreleased/partially released orders
+    total_deposits_held = CustomerDeposit.objects.filter(
+    order__status__in=['pending', 'partially_paid', 'partially_released']
+    ).aggregate(Sum('amount'))['amount__sum'] or 0
+
+    # Subtract already migrated deposits
+    from .models import CustomerOrderRelease
+    total_migrated = CustomerOrderRelease.objects.filter(
+        order__status__in=['partially_released']
+    ).aggregate(Sum('deposits_migrated'))['deposits_migrated__sum'] or 0
+
+    total_deposits_held = total_deposits_held - total_migrated
 
     # ── PRODUCT PERFORMANCE ───────────────────────────────────────
-    from .models import ShopSaleItem
     product_performance = ShopSaleItem.objects.filter(
         sale__sale_date__gte=date_from,
         sale__sale_date__lte=date_to
@@ -2068,6 +2165,19 @@ def director_report(request):
         total_revenue=Sum('total_amount'),
         total_discount=Sum('discount_amount'),
     ).order_by('-total_revenue')
+
+    # Compute net revenue per product in Python
+    product_performance_list = []
+    for p in product_performance:
+        discount = p['total_discount'] or 0
+        product_performance_list.append({
+            'product__name': p['product__name'],
+            'product__unit': p['product__unit'],
+            'total_quantity': p['total_quantity'],
+            'total_revenue': p['total_revenue'],
+            'total_discount': discount,
+            'net_revenue': p['total_revenue'] - discount,
+        })
 
     # ── CUSTOMER DEBT ─────────────────────────────────────────────
     customer_debts = []
@@ -2087,22 +2197,23 @@ def director_report(request):
     total_debt = sum(d['outstanding'] for d in customer_debts)
 
     # ── STOCK SUMMARY ─────────────────────────────────────────────
-    stocks = ShopStock.objects.select_related('product').order_by(
-        'product__name'
-    )
+    stocks = ShopStock.objects.select_related('product').order_by('product__name')
 
     context = {
         'date_from': date_from,
         'date_to': date_to,
-        'total_revenue': total_revenue,
+        'gross_revenue': gross_revenue,
+        'total_discounts': total_discounts,
+        'net_revenue': net_revenue,
+        'total_cash_received': total_cash_received,
+        'total_outstanding': total_outstanding,
         'total_cash': total_cash,
         'total_transfer': total_transfer,
         'total_pos': total_pos,
-        'total_paid': total_paid,
-        'total_outstanding': total_outstanding,
         'total_outflows': total_outflows,
         'net_profit': net_profit,
-        'product_performance': product_performance,
+        'total_deposits_held': total_deposits_held,
+        'product_performance': product_performance_list,
         'customer_debts': customer_debts,
         'total_debt': total_debt,
         'stocks': stocks,

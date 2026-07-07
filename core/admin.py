@@ -288,7 +288,8 @@ class CustomerAdmin(admin.ModelAdmin):
 @admin.register(ShopProduct)
 class ShopProductAdmin(admin.ModelAdmin):
     list_display = ['name', 'product_type', 'unit', 'wholesale_price',
-                    'retail_price', 'wholesale_threshold', 'is_active']
+                    'retail_price', 'wholesale_threshold',
+                    'discount_fixed_amount', 'is_active']
     list_filter = ['product_type', 'is_active']
     search_fields = ['name']
 
@@ -309,7 +310,7 @@ class ShopStockMovementInline(admin.TabularInline):
 
 @admin.register(ShopStock)
 class ShopStockAdmin(admin.ModelAdmin):
-    list_display = ['product', 'current_quantity', 'reorder_threshold']
+    list_display = ['product', 'current_quantity']
     inlines = [ShopStockMovementInline]
 
     def get_readonly_fields(self, request, obj=None):

@@ -241,9 +241,10 @@ class CustomerOrderForm(forms.ModelForm):
     class Meta:
         model = CustomerOrder
         fields = ['customer', 'product', 'quantity',
-                  'price_valid_until', 'recorded_by', 'notes']
+                  'price_valid_until', 'recorded_by', 'notes', 'discount_applied']
         widgets = {
             'price_valid_until': forms.DateInput(attrs={'type': 'date'}),
+            'discount_applied': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
         }
 
 class CustomerDepositForm(forms.ModelForm):
@@ -258,13 +259,13 @@ class CustomerDepositForm(forms.ModelForm):
 class ShopProductForm(forms.ModelForm):
     class Meta:
         model = ShopProduct
-        fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
+        fields = ['name', 'product_type', 'unit', 'wholesale_price',
                   'retail_price', 'wholesale_threshold', 'is_active', 'notes']
 
 
 class ShopProductDirectorForm(forms.ModelForm):
     class Meta:
         model = ShopProduct
-        fields = ['name', 'product_type', 'egg_grade', 'unit', 'wholesale_price',
+        fields = ['name', 'product_type', 'unit', 'wholesale_price',
                   'retail_price', 'wholesale_threshold', 'is_active', 'notes',
-                  'cost_price', 'discount_fixed_amount']
+                  'cost_price', 'discount_fixed_amount', 'reorder_threshold']

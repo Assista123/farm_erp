@@ -1450,58 +1450,45 @@ class ShopProduct(models.Model):
         ('other', 'Other'),
     ]
 
-    EGG_GRADE_CHOICES = [
-        ('jumbo', 'Jumbo'),
-        ('normal', 'Normal'),
-        ('new_drop', 'New Drop'),
-        ('cracked', 'Cracked'),
-        ('not_applicable', 'Not Applicable'),
+    UNIT_CHOICES = [
+        ('crate', 'Crate'),
+        ('bag', 'Bag'),
+        ('vial', 'Vial'),
+        ('sachet', 'Sachet'),
+        ('bottle', 'Bottle'),
+        ('litre', 'Litre'),
+        ('kg', 'Kg'),
+        ('unit', 'Unit'),
     ]
 
     name = models.CharField(max_length=200)
     product_type = models.CharField(max_length=20, choices=PRODUCT_TYPE_CHOICES)
-    egg_grade = models.CharField(
-        max_length=20,
-        choices=EGG_GRADE_CHOICES,
-        default='not_applicable'
-    )
-    unit = models.CharField(
-        max_length=50,
-        help_text="e.g. crate, bag, bottle, sachet"
-    )
+    unit = models.CharField(max_length=50, choices=UNIT_CHOICES, default='crate')
     cost_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0,
+        max_digits=10, decimal_places=2, default=0,
         help_text="Cost price per unit for profit calculation"
     )
-    wholesale_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0
-    )
-    retail_price = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0
-    )
+    wholesale_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    retail_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     wholesale_threshold = models.PositiveIntegerField(
         default=5,
         help_text="Minimum quantity to qualify for wholesale price"
     )
+    reorder_threshold = models.DecimalField(
+    max_digits=10,
+    decimal_places=2,
+    default=0,
+    help_text="Minimum stock level before low stock alert triggers"
+    )
     discount_fixed_amount = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0,
+        max_digits=10, decimal_places=2, default=0,
         help_text="Fixed discount amount per unit e.g. ₦100 means ₦100 off per unit"
     )
     is_active = models.BooleanField(default=True)
     notes = models.TextField(blank=True)
 
     def __str__(self):
-        if self.product_type == 'egg':
-            return f"{self.name} (Egg)"
-        return f"{self.name} ({self.get_product_type_display()})"
+        return self.name
 
 class ShopStock(models.Model):
     product = models.OneToOneField(
@@ -1514,11 +1501,6 @@ class ShopStock(models.Model):
         decimal_places=2,
         default=0,
         editable=False
-    )
-    reorder_threshold = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        default=0
     )
     last_updated = models.DateTimeField(auto_now=True)
     current_batch_number = models.CharField(max_length=100, blank=True)
@@ -1692,7 +1674,6 @@ class ShopSaleItem(models.Model):
     price_per_unit = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        editable=False,
         default=0
     )
     pricing_type = models.CharField(
@@ -1988,7 +1969,10 @@ class CustomerOrder(models.Model):
         related_name='customer_orders_recorded'
     )
     created_at = models.DateTimeField(auto_now_add=True)
-
+    discount_applied = models.BooleanField(
+    default=False,
+    help_text="Whether discount is agreed for this order"
+    )
     @property
     def total_deposited(self):
         from django.db.models import Sum

@@ -1,9 +1,9 @@
 from django.core.management.base import BaseCommand
-from core.models import ShopStock, ProductTypeThreshold
+from core.models import ShopProduct, ProductTypeThreshold
 
 
 class Command(BaseCommand):
-    help = 'Set reorder thresholds on existing ShopStock records based on ProductTypeThreshold settings'
+    help = 'Set reorder thresholds on existing ShopProduct records based on ProductTypeThreshold settings'
 
     def handle(self, *args, **kwargs):
         thresholds = {
@@ -21,11 +21,10 @@ class Command(BaseCommand):
         updated = 0
         skipped = 0
 
-        for stock in ShopStock.objects.select_related('product').all():
-            product_type = stock.product.product_type
-            if product_type in thresholds:
-                stock.reorder_threshold = thresholds[product_type]
-                stock.save(update_fields=['reorder_threshold'])
+        for product in ShopProduct.objects.all():
+            if product.product_type in thresholds:
+                product.reorder_threshold = thresholds[product.product_type]
+                product.save(update_fields=['reorder_threshold'])
                 updated += 1
             else:
                 skipped += 1

@@ -122,12 +122,17 @@
                 <tr class="table-danger">
                     <td>{{ stock.product.name }}</td>
                     <td>{{ stock.current_quantity }} {{ stock.product.unit }}</td>
-                    <td>{{ stock.reorder_threshold }} {{ stock.product.unit }}</td>
+                    <td>{{ stock.product.reorder_threshold }} {{ stock.product.unit }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" class="text-center text-muted py-3">All stock levels adequate.</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    <div class="card-footer text-muted small">Last updated: {{ today }}</div>
 </div>
 {% endif %}
 

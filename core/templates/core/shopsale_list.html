@@ -19,6 +19,8 @@
                         <th>Date</th>
                         <th>Customer</th>
                         <th>Total</th>
+                        <th>Amount Paid</th>
+                        <th>Outstanding</th>
                         <th>Payment</th>
                         <th>Delivery</th>
                         <th>Actions</th>
@@ -30,7 +32,25 @@
                         <td>{{ sale.sale_date }}</td>
                         <td>{{ sale.customer.name|default:sale.customer_name_walkin|default:"Walk-in" }}</td>
                         <td>₦{{ sale.total_amount }}</td>
-                        <td>{{ sale.get_payment_method_display }}</td>
+                        <td>₦{{ sale.amount_paid }}</td>
+                        <td>
+                            {% if sale.amount_outstanding_payment <= 0 %}
+                                <span class="badge bg-success">Paid</span>
+                            {% else %}
+                                <span class="text-danger fw-bold">₦{{ sale.amount_outstanding_payment }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if sale.payments.exists %}
+                                {% for payment in sale.payments.all %}
+                                    <span class="badge bg-secondary">
+                                        {{ payment.get_payment_method_display }}
+                                    </span>
+                                {% endfor %}
+                            {% else %}
+                                {{ sale.get_payment_method_display }}
+                            {% endif %}
+                        </td>
                         <td>
                             {% if sale.delivery_status == 'complete' %}
                                 <span class="badge bg-success">Complete</span>
@@ -47,7 +67,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">No sales recorded.</td>
+                        <td colspan="8" class="text-center text-muted py-4">No sales recorded.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

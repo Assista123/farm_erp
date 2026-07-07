@@ -16,7 +16,17 @@
         <p><strong>Customer:</strong> {{ order.customer.name }}</p>
         <p><strong>Product:</strong> {{ order.product }}</p>
         <p><strong>Quantity Ordered:</strong> {{ order.quantity }} {{ order.product.unit }}</p>
+        <p><strong>Price per Unit:</strong> ₦{{ order.agreed_price }}</p>
         <p><strong>Total Order Value:</strong> ₦{{ order.total_order_value }}</p>
+        <p><strong>Discount Agreed:</strong>
+            {% if order.discount_applied %}
+                <span class="badge bg-warning text-dark">
+                    Yes — ₦{{ order.product.discount_fixed_amount }} per {{ order.product.unit }}
+                </span>
+            {% else %}
+                <span class="text-muted">No</span>
+            {% endif %}
+        </p>
         <p><strong>Total Deposited:</strong> ₦{{ order.total_deposited }}</p>
         <p><strong>Balance Due:</strong>
             {% if order.balance_due <= 0 %}
@@ -34,7 +44,7 @@
         <form method="post">
             {% csrf_token %}
 
-           <div class="mb-3">
+            <div class="mb-3">
                 <label class="form-label fw-semibold">Quantity to Release</label>
                 <input type="number" name="quantity_to_release"
                     class="form-control" step="0.01"

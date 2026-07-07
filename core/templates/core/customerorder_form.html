@@ -16,22 +16,42 @@
             {% csrf_token %}
             {% for field in form %}
             <div class="mb-3">
-                <label class="form-label fw-semibold">{{ field.label }}</label>
-                {{ field }}
-                {% if field.help_text %}
-                    <span class="text-muted small">{{ field.help_text }}</span>
-                {% endif %}
-                {% if field.errors %}
-                    <div class="text-danger small">{{ field.errors }}</div>
+                {% if field.name == 'discount_applied' %}
+                    <div class="form-check d-none" id="discount_field_wrapper">
+                        {{ field }}
+                        <label class="form-check-label fw-semibold" for="{{ field.id_for_label }}">
+                            Apply Discount
+                        </label>
+                        <div class="text-muted small" id="discount_label"></div>
+                    </div>
+                {% else %}
+                    <label class="form-label fw-semibold">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.help_text %}
+                        <span class="text-muted small">{{ field.help_text }}</span>
+                    {% endif %}
+                    {% if field.errors %}
+                        <div class="text-danger small">{{ field.errors }}</div>
+                    {% endif %}
                 {% endif %}
             </div>
             {% endfor %}
 
             <!-- Price and total display -->
-            <div class="card bg-light mb-3" id="price_summary" style="display:none!important">
+            <div class="card bg-light mb-3 d-none" id="price_summary">
                 <div class="card-body">
-                    <p class="mb-1"><strong>Wholesale Price:</strong> ₦<span id="display_price">0.00</span> per unit</p>
-                    <p class="mb-0"><strong>Order Total:</strong> ₦<span id="display_total">0.00</span></p>
+                    <p class="mb-1">
+                        <strong>Wholesale Price:</strong>
+                        ₦<span id="display_price">0.00</span> per unit
+                    </p>
+                    <p class="mb-1">
+                        <strong>Order Total:</strong>
+                        ₦<span id="display_total">0.00</span>
+                    </p>
+                    <p class="mb-0 d-none text-danger" id="discount_total_row">
+                        <strong>After Discount:</strong>
+                        ₦<span id="display_discounted_total">0.00</span>
+                    </p>
                 </div>
             </div>
 
@@ -47,14 +67,34 @@ const quantityInput = document.getElementById('id_quantity');
 const priceSummary = document.getElementById('price_summary');
 const displayPrice = document.getElementById('display_price');
 const displayTotal = document.getElementById('display_total');
+const displayDiscountedTotal = document.getElementById('display_discounted_total');
+const discountTotalRow = document.getElementById('discount_total_row');
+const discountFieldWrapper = document.getElementById('discount_field_wrapper');
+const discountCheckbox = document.getElementById('id_discount_applied');
+const discountLabel = document.getElementById('discount_label');
 
 let currentPrice = 0;
+let currentDiscount = 0;
 
 function updateSummary() {
     const qty = parseFloat(quantityInput.value) || 0;
     const total = qty * currentPrice;
     displayTotal.textContent = total.toLocaleString('en-NG', {minimumFractionDigits: 2});
-    priceSummary.style.display = qty > 0 && currentPrice > 0 ? 'block' : 'none';
+
+    if (currentDiscount > 0 && discountCheckbox && discountCheckbox.checked) {
+        const discountTotal = qty * currentDiscount;
+        const afterDiscount = total - discountTotal;
+        displayDiscountedTotal.textContent = afterDiscount.toLocaleString(
+            'en-NG', {minimumFractionDigits: 2}
+        );
+        discountTotalRow.classList.remove('d-none');
+    } else {
+        discountTotalRow.classList.add('d-none');
+    }
+
+    if (qty > 0 && currentPrice > 0) {
+        priceSummary.classList.remove('d-none');
+    }
 }
 
 productSelect.addEventListener('change', function() {
@@ -66,13 +106,30 @@ productSelect.addEventListener('change', function() {
         .then(data => {
             if (data.wholesale_price) {
                 currentPrice = parseFloat(data.wholesale_price);
-                displayPrice.textContent = currentPrice.toLocaleString('en-NG', {minimumFractionDigits: 2});
-                priceSummary.style.removeProperty('display');
+                currentDiscount = parseFloat(data.discount_fixed_amount) || 0;
+                displayPrice.textContent = currentPrice.toLocaleString(
+                    'en-NG', {minimumFractionDigits: 2}
+                );
+
+                if (currentDiscount > 0) {
+                    discountFieldWrapper.classList.remove('d-none');
+                    discountLabel.textContent =
+                        `₦${currentDiscount.toLocaleString()} discount per ${data.unit}`;
+                } else {
+                    discountFieldWrapper.classList.add('d-none');
+                    if (discountCheckbox) discountCheckbox.checked = false;
+                }
+
+                priceSummary.classList.remove('d-none');
                 updateSummary();
             }
         });
 });
 
 quantityInput.addEventListener('input', updateSummary);
+
+if (discountCheckbox) {
+    discountCheckbox.addEventListener('change', updateSummary);
+}
 </script>
 {% endblock %}

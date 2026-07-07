@@ -7,11 +7,12 @@
     <h4>Shop Stock</h4>
     <div class="d-flex gap-2">
         <a href="{% url 'shopstock-expiry-export' %}" class="btn btn-outline-success">
-            <i class="bi bi-download"></i> Export Expiry Report
-        </a>
+            <i class="bi bi-download"></i> Export Stock Report
+        {% if is_manager_or_above %}
         <a href="{% url 'shopstockmovement-create' %}" class="btn btn-success">
             <i class="bi bi-plus-circle"></i> Record Stock Movement
         </a>
+        {% endif %}
     </div>
 </div>
 
@@ -56,9 +57,9 @@
                                 <span class="badge bg-warning text-dark ms-1">Expiring Soon</span>
                             {% endif %}
                         </td>
-                        <td>{{ stock.reorder_threshold }}</td>
+                        <td>{{ stock.product.reorder_threshold }}</td>
                         <td>
-                            {% if stock.current_quantity <= stock.reorder_threshold %}
+                            {% if stock.current_quantity <= stock.product.reorder_threshold %}
                                 <span class="badge bg-danger">Low Stock</span>
                             {% else %}
                                 <span class="badge bg-success">Adequate</span>

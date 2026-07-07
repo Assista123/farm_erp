@@ -5,12 +5,13 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h4>Order — {{ order.customer.name }}</h4>
+    
+    <a href="{% url 'customer-ledger' order.customer.pk %}" class="btn btn-outline-secondary">
+    <i class="bi bi-journal-text"></i> View Ledger
+    </a>
     <a href="{% url 'customerorder-list' %}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Back
     </a>
-    <a href="{% url 'customer-ledger' order.customer.pk %}" class="btn btn-outline-info btn-sm">
-    <i class="bi bi-journal-text"></i> View Ledger
-</a>
 </div>
 
 {% if order.is_price_expired %}
@@ -188,10 +189,6 @@
         </p>
         <p><strong>Total Deposits Paid:</strong> ₦{{ order.total_deposited }}</p>
         <p><strong>Total Deposits Migrated to Sales:</strong> ₦{{ total_deposits_migrated }}</p>
-            ₦{% with total=order.releases.all %}
-                {{ total|length }}
-            {% endwith %}
-        </p>
     </div>
 </div>
 {% endblock %}

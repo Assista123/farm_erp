@@ -133,17 +133,9 @@ def compute_manure_total_revenue(sender, instance, **kwargs):
 @receiver(post_save, sender=ShopProduct)
 def create_shop_stock_for_product(sender, instance, created, **kwargs):
     if created:
-        from .models import ProductTypeThreshold
-        try:
-            threshold = ProductTypeThreshold.objects.get(
-                product_type=instance.product_type
-            ).reorder_threshold
-        except ProductTypeThreshold.DoesNotExist:
-            threshold = 0
-
         ShopStock.objects.get_or_create(
             product=instance,
-            defaults={'current_quantity': 0, 'reorder_threshold': threshold}
+            defaults={'current_quantity': 0}
         )
 
 # ── SHOP STOCK MOVEMENT ───────────────────────────────────────────────────────
