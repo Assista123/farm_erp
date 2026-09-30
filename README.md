@@ -30,7 +30,7 @@ Built for real farm operations: multi-role access (pen workers, store keepers, s
 
 ## Project Structure
 
-
+```text
 farm_erp/
 ├── manage.py
 ├── requirements.txt
@@ -47,6 +47,7 @@ farm_erp/
 │   └── templates/
 └── staticfiles/
 
+```
 
 ## Core data model (high level)
 
